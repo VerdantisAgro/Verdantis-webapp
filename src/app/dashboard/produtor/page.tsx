@@ -1,11 +1,11 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card"
+import { Badge } from "@/src/components/ui/badge"
+import { Button } from "@/src/components/ui/button"
 import { Calendar, MapPin, Leaf, TrendingUp, Droplets, Sun, AlertCircle, CheckCircle, Clock } from "lucide-react"
 import { useEffect, useRef } from "react"
-import type { CropData, ProducerStats, Alert, WeatherData, CropStatus } from "@/types"
+import type { CropData, ProducerStats, Alert, WeatherData, CropStatus } from "@/src/types"
 
 export default function ProdutorDashboard() {
   const observerRef = useRef<IntersectionObserver | null>(null)

@@ -1,46 +1,33 @@
 "use client"
 
 import type React from "react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Leaf, User, Building2, ArrowRight, Shield, CheckCircle2 } from "lucide-react"
+import Link from "next/link"
+
+import { Button } from "@/src/components/ui/button"
+import { Card } from "@/src/components/ui/card"
+import { Badge } from "@/src/components/ui/badge"
+import { Input } from "@/src/components/ui/input"
+import { Label } from "@/src/components/ui/label"
+import { Leaf, User, Building2, ArrowRight, Shield } from "lucide-react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import type { UserRole } from "@/types"
+import type { UserRole } from "@/src/types"
 
-export default function RegisterPage() {
+export default function LoginPage() {
   const router = useRouter()
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null)
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    phone: "",
-    company: "",
-  })
+  const [email, setEmail] = useState<string>("")
+  const [password, setPassword] = useState<string>("")
 
-  const handleRegister = (e: React.FormEvent<HTMLFormElement>): void => {
+  const handleLogin = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
-    if (selectedRole && formData.password === formData.confirmPassword) {
-      // In a real app, you would send this to your backend
+    if (selectedRole) {
       router.push(`/dashboard/${selectedRole}`)
     }
   }
 
   const handleRoleSelect = (role: UserRole): void => {
     setSelectedRole(role)
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    })
   }
 
   return (
@@ -65,30 +52,21 @@ export default function RegisterPage() {
                 </div>
               </div>
               <h1 className="text-4xl sm:text-5xl font-bold text-balance leading-tight">
-                Crie sua <span className="text-primary">conta</span>
+                Acesse sua <span className="text-primary">plataforma</span>
               </h1>
               <p className="text-xl text-muted-foreground text-pretty">
-                Junte-se ao futuro da rastreabilidade agrícola e transforme sua gestão.
+                Sistema de rastreabilidade e gestão inteligente para o agronegócio brasileiro.
               </p>
             </div>
 
             <div className="space-y-4">
               <div className="flex items-center space-x-3">
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <div className="font-semibold">Cadastro Gratuito</div>
-                  <div className="text-sm text-muted-foreground">Comece sem custos iniciais</div>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <Shield className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <div className="font-semibold">Dados Protegidos</div>
-                  <div className="text-sm text-muted-foreground">Segurança blockchain garantida</div>
+                  <div className="font-semibold">Segurança Blockchain</div>
+                  <div className="text-sm text-muted-foreground">Dados protegidos e imutáveis</div>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
@@ -96,8 +74,8 @@ export default function RegisterPage() {
                   <Leaf className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <div className="font-semibold">Suporte Completo</div>
-                  <div className="text-sm text-muted-foreground">Equipe dedicada ao seu sucesso</div>
+                  <div className="font-semibold">Certificação Sustentável</div>
+                  <div className="text-sm text-muted-foreground">Acesso a mercados globais</div>
                 </div>
               </div>
             </div>
@@ -114,12 +92,12 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          {/* Right Side - Register Form */}
+          {/* Right Side - Login Form */}
           <Card className="p-8 shadow-2xl border-border/20 animate-fade-in-right">
             <div className="space-y-6">
               <div className="space-y-2">
-                <h2 className="text-2xl font-bold">Criar Conta</h2>
-                <p className="text-sm text-muted-foreground">Preencha os dados para começar</p>
+                <h2 className="text-2xl font-bold">Entrar no Sistema</h2>
+                <p className="text-sm text-muted-foreground">Selecione seu tipo de acesso e faça login</p>
               </div>
 
               {/* Role Selection */}
@@ -176,124 +154,56 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Register Form */}
-              <form onSubmit={handleRegister} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Nome Completo</Label>
-                    <Input
-                      id="name"
-                      name="name"
-                      type="text"
-                      placeholder="João Silva"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      required
-                      className="h-11"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Telefone</Label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      placeholder="(11) 99999-9999"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      required
-                      className="h-11"
-                    />
-                  </div>
-                </div>
-
+              {/* Login Form */}
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">E-mail</Label>
                   <Input
                     id="email"
-                    name="email"
                     type="email"
                     placeholder="seu@email.com"
-                    value={formData.email}
-                    onChange={handleInputChange}
+                    value={email}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                     required
                     className="h-11"
                   />
                 </div>
 
-                {selectedRole === "gestor" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="company">Empresa</Label>
-                    <Input
-                      id="company"
-                      name="company"
-                      type="text"
-                      placeholder="Nome da empresa"
-                      value={formData.company}
-                      onChange={handleInputChange}
-                      required
-                      className="h-11"
-                    />
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      required
-                      className="h-11"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirmar Senha</Label>
-                    <Input
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type="password"
-                      placeholder="••••••••"
-                      value={formData.confirmPassword}
-                      onChange={handleInputChange}
-                      required
-                      className="h-11"
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                    required
+                    className="h-11"
+                  />
                 </div>
 
-                <div className="flex items-start space-x-2">
-                  <input type="checkbox" required className="mt-1 rounded border-border" />
-                  <span className="text-sm text-muted-foreground">
-                    Concordo com os{" "}
-                    <a href="#" className="text-primary hover:underline">
-                      termos de uso
-                    </a>{" "}
-                    e{" "}
-                    <a href="#" className="text-primary hover:underline">
-                      política de privacidade
-                    </a>
-                  </span>
+                <div className="flex items-center justify-between text-sm">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox" className="rounded border-border" />
+                    <span className="text-muted-foreground">Lembrar de mim</span>
+                  </label>
+                  <a href="#" className="text-primary hover:underline">
+                    Esqueceu a senha?
+                  </a>
                 </div>
 
                 <Button type="submit" size="lg" className="w-full btn-animate hover-glow" disabled={!selectedRole}>
                   {selectedRole
-                    ? `Criar conta como ${selectedRole === "produtor" ? "Produtor" : "Gestor"}`
+                    ? `Entrar como ${selectedRole === "produtor" ? "Produtor" : "Gestor"}`
                     : "Selecione um tipo de usuário"}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </form>
 
               <div className="text-center text-sm text-muted-foreground">
-                Já tem uma conta?{" "}
-                <Link href="/" className="text-primary hover:underline font-medium">
-                  Faça login
+                Não tem uma conta?{" "}
+                <Link href="/register" className="text-primary hover:underline font-medium">
+                  Cadastre-se gratuitamente
                 </Link>
               </div>
             </div>
