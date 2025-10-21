@@ -136,3 +136,107 @@ export interface ChartDataPoint {
   month: string
   value: number
 }
+
+// Lote (Plot/Lot) Interface
+export interface Lote {
+  id: string
+  name: string
+  propertyId: string
+  propertyName: string
+  area: number
+  soilType: string
+  irrigationSystem: boolean
+  status: "Disponível" | "Em Uso" | "Em Preparo"
+  currentCrop?: string
+}
+
+// Extended Farm Property Interface with Lotes
+export interface FarmPropertyExtended extends FarmProperty {
+  owner: string
+  registrationDate: string
+  lotes: Lote[]
+  totalLotes: number
+}
+
+// Cultivo (Cultivation) Interface - Extended from CropData
+export interface Cultivo extends CropData {
+  loteId: string
+  propertyId: string
+  variety: string
+  expectedYield: number
+  actualYield?: number
+  notes?: string
+}
+
+// Registration Form Data
+export interface PropertyFormData {
+  name: string
+  area: number
+  location: string
+  owner: string
+}
+
+export interface LoteFormData {
+  name: string
+  propertyId: string
+  area: number
+  soilType: string
+  irrigationSystem: boolean
+}
+
+export interface CultivoFormData {
+  name: string
+  loteId: string
+  propertyId: string
+  variety: string
+  plantingDate: string
+  harvestDate: string
+  area: number
+  expectedYield: number
+  notes?: string
+}
+
+// Producer interface for gestor management
+export interface Producer {
+  id: string
+  name: string
+  email: string
+  phone: string
+  location: string
+  totalArea: number
+  properties: number
+  activeCrops: number
+  mainCrop: string
+  productivity: number
+  joinDate: string
+  status: "Ativo" | "Inativo" | "Pendente"
+  certifications: string[]
+}
+
+// Analytics data interfaces
+export interface MonthlyProductionData {
+  month: string
+  producao: number
+  meta: number
+  eficiencia: number
+}
+
+export interface CropPerformanceData {
+  cultura: string
+  producao: number
+  crescimento: number
+  area: number
+}
+
+export interface RegionalDistributionData {
+  regiao: string
+  valor: number
+  produtores: number
+}
+
+export interface SustainabilityTrendsData {
+  mes: string
+  agua: number
+  co2: number
+  certificacoes: number
+}

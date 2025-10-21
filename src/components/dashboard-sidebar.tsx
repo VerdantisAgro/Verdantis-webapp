@@ -35,7 +35,7 @@ export function DashboardSidebar({ role }: SidebarProps) {
   }
 
   return (
-    <aside className="w-64 border-r border-border/40 min-h-[calc(100vh-4rem)] bg-background/50 backdrop-blur-sm">
+    <aside className="w-64 h-[calc(100vh-4rem)] sticky top-16 border-r border-border/40 bg-background/70 backdrop-blur-md overflow-y-auto">
       <nav className="p-4 space-y-2">
         {navigation.map((item) => {
           const isActive = pathname === item.href
