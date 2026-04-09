@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useParams } from "next/navigation"
+import { lotesApi } from "@/src/api"
 import { Topbar } from "@/src/components/topbar"
 import { PageContainer } from "@/src/components/page-container"
 import { ProgressIndicator } from "@/src/components/progress-indicator"
@@ -85,9 +86,23 @@ export default function TraceabilityDetailsPage() {
     [params.lotId],
   )
 
-  const [events, setEvents] = useState<TraceabilityEvent[]>(cultivo?.events || [])
-  const [isComplete, setIsComplete] = useState(Boolean(cultivo?.isComplete))
-  const [hash, setHash] = useState<TraceabilityHash | null>(cultivo?.traceabilityHash || null)
+  const [events, setEvents] = useState<TraceabilityEvent[]>([])
+  const [isComplete, setIsComplete] = useState(false)
+  const [hash, setHash] = useState<TraceabilityHash | null>(null)
+
+  useEffect(() => {
+    ;(async () => {
+      if (!cultivo) return
+      try {
+        const ev = await lotesApi.getEventos(Number(cultivo.loteId))
+        setEvents((ev || []).map((e: any) => ({ ...e, timestamp: new Date(e.timestamp || e.date || Date.now()) })))
+      } catch (err) {
+        console.error("Failed to load events", err)
+      }
+      setIsComplete(Boolean(cultivo.isComplete))
+      setHash(cultivo.traceabilityHash || null)
+    })()
+  }, [cultivo])
 
   if (!cultivo) {
     return (
@@ -104,20 +119,41 @@ export default function TraceabilityDetailsPage() {
     )
   }
 
-  const handleAddEvent = (event: TraceabilityEvent) => {
-    setEvents((prev) => [...prev, event])
+  const handleAddEvent = async (event: TraceabilityEvent) => {
+    try {
+      await lotesApi.postEvento(Number(cultivo.loteId), {
+        loteId: Number(cultivo.loteId),
+        tipoEvento: event.type,
+        descricao: event.description,
+      })
+      setEvents((prev) => [...prev, event])
+    } catch (err) {
+      console.error("Failed to post event", err)
+    }
   }
 
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
     if (events.length === 0) return
-    const generated: TraceabilityHash = {
-      lotId: cultivo.id,
-      hash: generateHash(events, cultivo.id),
-      generatedAt: new Date(),
-      eventCount: events.length,
+    try {
+      const payload = {
+        nomeLote: cultivo.lot,
+        cultura: cultivo.name,
+        producaoTotal: cultivo.expectedYield || 0,
+        custoTotal: 0,
+        precoVenda: cultivo.expectedYield || 0,
+      }
+      const res = await lotesApi.finalizarCultivo(Number(cultivo.loteId), payload)
+      const generated: TraceabilityHash = {
+        lotId: cultivo.id,
+        hash: res?.hashEventos || res?.hash || generateHash(events, cultivo.id),
+        generatedAt: new Date(),
+        eventCount: events.length,
+      }
+      setIsComplete(true)
+      setHash(generated)
+    } catch (err) {
+      console.error("Failed to finalize cultivo", err)
     }
-    setIsComplete(true)
-    setHash(generated)
   }
 
   return (

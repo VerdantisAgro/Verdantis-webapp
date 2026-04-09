@@ -8,24 +8,57 @@ import { Button } from "@/src/components/ui/button"
 import { Badge } from "@/src/components/ui/badge"
 import { ArrowLeft, DollarSign, TrendingUp, TrendingDown, Percent } from "lucide-react"
 
-const lot = {
-  id: "1",
-  name: "Lote A1",
-  crop: "Milho",
-  production: 185,
-  cost: 11500,
-  salePrice: 85,
-  revenue: 15725,
-  profit: 4225,
-  margin: 26.9,
-  status: "Ativo" as const,
-  area: 25,
+import { useEffect, useState } from "react"
+import { lotesApi } from "@/src/api"
+
+const defaultLot = {
+  id: "",
+  name: "",
+  crop: "",
+  production: 0,
+  cost: 0,
+  salePrice: 0,
+  revenue: 0,
+  profit: 0,
+  margin: 0,
+  status: "",
+  area: 0,
 }
 
 const formatCurrency = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
 export default function LoteDetailPage() {
+  const [lot, setLot] = useState<any>(defaultLot)
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        // obtain id from URL
+        const path = window.location.pathname
+        const id = path.split("/").filter(Boolean).pop()
+        if (!id) return
+        const res = await lotesApi.getLoteById(Number(id))
+        const api = res && res[0] ? res[0] : res
+        setLot({
+          id: String(api.id),
+          name: api.nomeLote || api.lote || `Lote ${api.id}`,
+          crop: api.cultura || api.crop || "",
+          production: api.producao || api.producaoTotal || 0,
+          cost: api.custo || api.custoTotal || 0,
+          salePrice: api.precoVenda || 0,
+          revenue: api.receita || 0,
+          profit: api.lucroEstimado || api.lucro || (api.receita || 0) - (api.custo || 0),
+          margin: 0,
+          status: api.status || "",
+          area: api.area || 0,
+        })
+      } catch (err) {
+        console.error("Failed to load lote", err)
+      }
+    })()
+  }, [])
+
   return (
     <>
       <Topbar title={`Lote ${lot.name}`} description={`${lot.crop} - ${lot.area} ha`} />

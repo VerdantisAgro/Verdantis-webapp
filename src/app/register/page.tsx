@@ -7,6 +7,7 @@ import { Input } from "@/src/components/ui/input"
 import { Label } from "@/src/components/ui/label"
 import { Leaf, ArrowRight, CheckCircle2, Shield } from "lucide-react"
 import { useState } from "react"
+import { authApi } from "@/src/api"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { BackgroundOverlayLayout } from "@/src/components/background-overlay-layout"
@@ -16,15 +17,26 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    cpf: "",
     password: "",
     confirmPassword: "",
     phone: "",
   })
 
-  const handleRegister = (e: React.FormEvent<HTMLFormElement>): void => {
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
-    if (formData.password === formData.confirmPassword) {
-      router.push("/dashboard")
+    if (formData.password !== formData.confirmPassword) return
+    try {
+      const res = await authApi.register({ nomeCompleto: formData.name, email: formData.email, cpf: formData.cpf, senha: formData.password })
+      if (res?.token) {
+        localStorage.setItem("token", res.token)
+        if (res.id) localStorage.setItem("userId", String(res.id))
+        if (res.name) localStorage.setItem("userName", res.name)
+        if (res.email) localStorage.setItem("userEmail", res.email)
+        router.push("/dashboard")
+      }
+    } catch (err) {
+      console.error("Register error", err)
     }
   }
 
@@ -104,6 +116,18 @@ export default function RegisterPage() {
                     required
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cpf">CPF</Label>
+                <Input
+                  id="cpf"
+                  name="cpf"
+                  placeholder="12345678900"
+                  value={formData.cpf}
+                  onChange={handleInputChange}
+                  required
+                />
               </div>
 
               <div className="space-y-2">

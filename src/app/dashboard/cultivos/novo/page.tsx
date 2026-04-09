@@ -15,14 +15,11 @@ import { Textarea } from "@/src/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/src/components/ui/tooltip"
 import { ArrowLeft, Save, Info } from "lucide-react"
 
-// Lots data (no property reference)
-const lots = [
-  { id: "1", name: "Lote A1", area: 25 },
-  { id: "2", name: "Lote B1", area: 30 },
-  { id: "3", name: "Lote C2", area: 15 },
-  { id: "4", name: "Lote A3", area: 20 },
-  { id: "5", name: "Lote B2", area: 35 },
-]
+import { useEffect } from "react"
+import { lotesApi } from "@/src/api"
+
+// Lots data (populated from API)
+const lotsInitial: { id: string; name: string; area: number }[] = []
 
 const crops = ["Milho", "Soja", "Alface", "Tomate", "Feijao", "Trigo", "Arroz", "Cafe"]
 
@@ -50,7 +47,19 @@ export default function NovoCultivoPage() {
     notes: "",
   })
 
+  const [lots, setLots] = useState(lotsInitial)
   const selectedLot = lots.find((l) => l.id === formData.loteId)
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await lotesApi.getLotes()
+        if (Array.isArray(res)) setLots(res.map((r: any) => ({ id: String(r.id), name: r.nomeLote || r.lote || `Lote ${r.id}`, area: r.area || 0 })))
+      } catch (err) {
+        console.error("Failed to load lots for novo cultivo", err)
+      }
+    })()
+  }, [])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

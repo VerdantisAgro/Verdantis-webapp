@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useMemo } from "react"
+import { lotesApi } from "@/src/api"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Topbar } from "@/src/components/topbar"
@@ -36,7 +37,14 @@ export default function NovoLotePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    router.push("/dashboard/lotes")
+    ;(async () => {
+      try {
+        await lotesApi.createLote({ nomeLote: formData.name, cultura: formData.cropId, producaoTotal: formData.production, custoTotal: formData.cost, precoVenda: formData.salePrice })
+      } catch (err) {
+        console.error("Failed to create lote", err)
+      }
+      router.push("/dashboard/lotes")
+    })()
   }
 
   const updateField = (field: keyof LoteFormData, value: string | number) => {

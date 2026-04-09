@@ -7,8 +7,9 @@ import { Card } from "@/src/components/ui/card"
 import { Input } from "@/src/components/ui/input"
 import { Label } from "@/src/components/ui/label"
 import { Leaf, ArrowRight, TrendingUp, BarChart3, Shield, Grid3x3, Sprout, LineChart } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { authApi } from "@/src/api"
 
 export default function HomePage() {
   const router = useRouter()
@@ -17,7 +18,20 @@ export default function HomePage() {
 
   const handleLogin = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
-    router.push("/dashboard")
+    ;(async () => {
+      try {
+        const res = await authApi.login({ email, senha: password })
+        if (res?.token) {
+          localStorage.setItem("token", res.token)
+          if (res.id) localStorage.setItem("userId", String(res.id))
+          if (res.name) localStorage.setItem("userName", res.name)
+          if (res.email) localStorage.setItem("userEmail", res.email)
+          router.push("/dashboard")
+        }
+      } catch (err) {
+        console.error("Login error", err)
+      }
+    })()
   }
 
   return (

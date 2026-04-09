@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { Topbar } from "@/src/components/topbar"
 import { PageContainer } from "@/src/components/page-container"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card"
@@ -26,15 +26,9 @@ import {
 } from "lucide-react"
 import type { SimulationLot } from "@/src/types"
 
-// Existing lots from the system
-const existingLots = [
-  { id: "1", name: "Lote A1", crop: "Milho", area: 25 },
-  { id: "2", name: "Lote B2", crop: "Soja", area: 30 },
-  { id: "3", name: "Lote C3", crop: "Cafe", area: 15 },
-  { id: "4", name: "Lote D4", crop: "Trigo", area: 20 },
-  { id: "5", name: "Lote E5", crop: "Milho", area: 35 },
-  { id: "6", name: "Lote F6", crop: "Alface", area: 10 },
-]
+import { lotesApi } from "@/src/api"
+
+const existingLotsInitial: { id: string; name: string; crop: string; area: number }[] = []
 
 const crops = ["Milho", "Soja", "Cafe", "Trigo", "Arroz", "Feijao", "Algodao", "Alface"]
 
@@ -138,12 +132,14 @@ function ScenarioCard({
   scenario, 
   onChange, 
   onRemove,
-  canRemove = true 
+  canRemove = true,
+  existingLots
 }: { 
   scenario: ScenarioData
   onChange: (data: ScenarioData) => void
   onRemove: () => void
   canRemove?: boolean
+  existingLots: { id: string; name: string; crop: string; area: number }[]
 }) {
   const selectedExistingLot = existingLots.find(l => l.id === scenario.existingLotId)
   const showProductionParams = scenario.useExistingLot 
@@ -542,6 +538,20 @@ export default function SimulacaoPage() {
     createEmptyScenario("1", "Cenario 1"),
     createEmptyScenario("2", "Cenario 2"),
   ])
+  const [existingLots, setExistingLots] = useState(existingLotsInitial)
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await lotesApi.getLotes()
+        if (Array.isArray(res)) {
+          setExistingLots(res.map((r: any) => ({ id: String(r.id), name: r.nomeLote || r.lote || `Lote ${r.id}`, crop: r.cultura || r.crop || "", area: r.area || r.tamanho || 0 })))
+        }
+      } catch (err) {
+        console.error("Failed to load existing lots", err)
+      }
+    })()
+  }, [])
 
   const results = useMemo(() => scenarios.map(calculateResult), [scenarios])
 
@@ -599,6 +609,7 @@ export default function SimulacaoPage() {
                   onChange={(data) => handleScenarioChange(scenario.id, data)}
                   onRemove={() => handleRemoveScenario(scenario.id)}
                   canRemove={scenarios.length > 2}
+                  existingLots={existingLots}
                 />
               ))}
             </div>
