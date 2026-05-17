@@ -7,36 +7,37 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src
 import { Button } from "@/src/components/ui/button"
 import { Input } from "@/src/components/ui/input"
 import { Label } from "@/src/components/ui/label"
-import { Badge } from "@/src/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select"
 import { Checkbox } from "@/src/components/ui/checkbox"
-import { 
-  Calculator, 
-  Trash2, 
-  TrendingUp, 
-  DollarSign,
-  BarChart3,
-  Target,
-  Scale,
-  Trophy,
-  ArrowRight,
+import {
+  Calculator,
   Plus,
   X,
-  CheckCircle2
+  CheckCircle2,
+  Trophy,
+  Scale,
+  Target,
+  TrendingUp,
 } from "lucide-react"
 import type { SimulationLot } from "@/src/types"
-
-import { lotesApi } from "@/src/api"
-
-const existingLotsInitial: { id: string; name: string; crop: string; area: number }[] = []
+import { simulacoesApi, lotesApi } from "@/src/api"
+import { cn } from "@/src/lib/utils"
 
 const crops = ["Milho", "Soja", "Cafe", "Trigo", "Arroz", "Feijao", "Algodao", "Alface"]
+
+type ExistingLot = {
+  id: string
+  name: string
+  crop: string
+  area: number
+}
 
 interface ScenarioData {
   id: string
   name: string
   useExistingLot: boolean
   existingLotId: string
+  lotArea: number
   tempLotName: string
   tempLotCrop: string
   tempLotArea: number
@@ -64,6 +65,7 @@ const createEmptyScenario = (id: string, name: string): ScenarioData => ({
   name,
   useExistingLot: true,
   existingLotId: "",
+  lotArea: 0,
   tempLotName: "",
   tempLotCrop: "",
   tempLotArea: 0,
@@ -74,42 +76,48 @@ const createEmptyScenario = (id: string, name: string): ScenarioData => ({
   otherCosts: 0,
 })
 
-function calculateResult(scenario: ScenarioData, existingLots: { id: string; name: string; crop: string; area: number }[]): CalculatedResult | null {
+function calculateResult(
+  scenario: ScenarioData,
+  existingLots: ExistingLot[]
+): CalculatedResult | null {
   let lot: SimulationLot
+  let area: number
 
   if (scenario.useExistingLot) {
-    const existingLot = existingLots.find(l => l.id === scenario.existingLotId)
+    const existingLot = existingLots.find((l) => l.id === scenario.existingLotId)
     if (!existingLot) return null
+    area = scenario.lotArea > 0 ? scenario.lotArea : existingLot.area
+    if (area <= 0) return null
     lot = {
       id: existingLot.id,
       name: existingLot.name,
       isTemporary: false,
-      area: existingLot.area,
+      area,
       crop: existingLot.crop,
     }
   } else {
-    if (!scenario.tempLotArea || !scenario.tempLotCrop) return null
+    area = scenario.tempLotArea
+    if (!area || !scenario.tempLotCrop) return null
     lot = {
       id: scenario.id,
       name: scenario.tempLotName || "Lote Temporario",
       isTemporary: true,
-      area: scenario.tempLotArea,
+      area,
       crop: scenario.tempLotCrop,
     }
   }
 
   if (scenario.estimatedYield <= 0 || scenario.estimatedPrice <= 0) return null
 
-  const totalProduction = scenario.estimatedYield * lot.area
+  const totalProduction = scenario.estimatedYield * area
   const totalRevenue = totalProduction * scenario.estimatedPrice
   const totalCost = scenario.laborCost + scenario.inputCost + scenario.otherCosts
   const profit = totalRevenue - totalCost
   const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0
   const roi = totalCost > 0 ? (profit / totalCost) * 100 : 0
   const breakEvenPrice = totalProduction > 0 ? totalCost / totalProduction : 0
-  const breakEvenYield = scenario.estimatedPrice > 0 && lot.area > 0 
-    ? totalCost / (scenario.estimatedPrice * lot.area) 
-    : 0
+  const breakEvenYield =
+    scenario.estimatedPrice > 0 && area > 0 ? totalCost / (scenario.estimatedPrice * area) : 0
 
   return {
     totalProduction,
@@ -127,59 +135,67 @@ function calculateResult(scenario: ScenarioData, existingLots: { id: string; nam
 const formatCurrency = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
-// Editable Scenario Card
-function ScenarioCard({ 
-  scenario, 
-  onChange, 
+// ─── Scenario Card ────────────────────────────────────────────────────────────
+
+function ScenarioCard({
+  scenario,
+  onChange,
   onRemove,
-  canRemove = true,
-  existingLots
-}: { 
+  canRemove,
+  existingLots,
+}: {
   scenario: ScenarioData
   onChange: (data: ScenarioData) => void
   onRemove: () => void
-  canRemove?: boolean
-  existingLots: { id: string; name: string; crop: string; area: number }[]
+  canRemove: boolean
+  existingLots: ExistingLot[]
 }) {
-  const selectedExistingLot = existingLots.find(l => l.id === scenario.existingLotId)
-  const showProductionParams = scenario.useExistingLot 
-    ? !!selectedExistingLot 
-    : (scenario.tempLotArea > 0 && !!scenario.tempLotCrop)
+  const selectedExistingLot = existingLots.find((l) => l.id === scenario.existingLotId)
+  const showAreaOverride = scenario.useExistingLot && !!selectedExistingLot
+  const showProductionParams = scenario.useExistingLot
+    ? !!selectedExistingLot && (scenario.lotArea > 0 || selectedExistingLot.area > 0)
+    : scenario.tempLotArea > 0 && !!scenario.tempLotCrop
 
   return (
     <Card className="flex-1">
       <CardHeader className="pb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <Input
-              value={scenario.name}
-              onChange={(e) => onChange({ ...scenario, name: e.target.value })}
-              className="text-lg font-semibold border-0 p-0 h-auto focus-visible:ring-0 bg-transparent"
-              placeholder="Nome do cenario"
-            />
-          </div>
+        <div className="flex items-start justify-between gap-2">
+          <Input
+            value={scenario.name}
+            onChange={(e) => onChange({ ...scenario, name: e.target.value })}
+            className="text-base font-semibold border-0 p-0 h-auto focus-visible:ring-0 bg-transparent"
+            placeholder="Nome do cenario"
+          />
           {canRemove && (
-            <Button variant="ghost" size="icon" onClick={onRemove} className="h-8 w-8 text-muted-foreground hover:text-destructive">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onRemove}
+              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+            >
               <X className="h-4 w-4" />
             </Button>
           )}
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* Lot Selection */}
+        {/* Lot selection */}
         <div className="space-y-3">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <Checkbox
               id={`use-existing-${scenario.id}`}
               checked={scenario.useExistingLot}
-              onCheckedChange={(checked) => onChange({ 
-                ...scenario, 
-                useExistingLot: checked as boolean,
-                existingLotId: "",
-                tempLotName: "",
-                tempLotCrop: "",
-                tempLotArea: 0
-              })}
+              onCheckedChange={(checked) =>
+                onChange({
+                  ...scenario,
+                  useExistingLot: checked as boolean,
+                  existingLotId: "",
+                  lotArea: 0,
+                  tempLotName: "",
+                  tempLotCrop: "",
+                  tempLotArea: 0,
+                })
+              }
             />
             <Label htmlFor={`use-existing-${scenario.id}`} className="text-sm cursor-pointer">
               Usar lote existente
@@ -187,21 +203,44 @@ function ScenarioCard({
           </div>
 
           {scenario.useExistingLot ? (
-            <Select 
-              value={scenario.existingLotId} 
-              onValueChange={(v) => onChange({ ...scenario, existingLotId: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um lote" />
-              </SelectTrigger>
-              <SelectContent>
-                {existingLots.map((lot) => (
-                  <SelectItem key={lot.id} value={lot.id}>
-                    {lot.name} - {lot.crop} ({lot.area} ha)
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-3">
+              <Select
+                value={scenario.existingLotId}
+                onValueChange={(v) => onChange({ ...scenario, existingLotId: v, lotArea: 0 })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um lote" />
+                </SelectTrigger>
+                <SelectContent>
+                  {existingLots.map((lot) => (
+                    <SelectItem key={lot.id} value={lot.id}>
+                      {lot.name} — {lot.crop}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {showAreaOverride && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">
+                    Area do lote (ha)
+                    {selectedExistingLot?.area > 0 && (
+                      <span className="ml-1 text-muted-foreground">
+                        — cadastrado: {selectedExistingLot.area} ha
+                      </span>
+                    )}
+                  </Label>
+                  <Input
+                    type="number"
+                    placeholder="Ex: 50"
+                    value={scenario.lotArea || ""}
+                    onChange={(e) => onChange({ ...scenario, lotArea: Number(e.target.value) })}
+                    min="0"
+                    step="0.1"
+                  />
+                </div>
+              )}
+            </div>
           ) : (
             <div className="space-y-3 p-3 rounded-lg bg-muted/50 border border-border">
               <p className="text-xs font-medium text-muted-foreground">Lote temporario (simulacao)</p>
@@ -211,8 +250,8 @@ function ScenarioCard({
                   value={scenario.tempLotName}
                   onChange={(e) => onChange({ ...scenario, tempLotName: e.target.value })}
                 />
-                <Select 
-                  value={scenario.tempLotCrop} 
+                <Select
+                  value={scenario.tempLotCrop}
                   onValueChange={(v) => onChange({ ...scenario, tempLotCrop: v })}
                 >
                   <SelectTrigger>
@@ -220,7 +259,9 @@ function ScenarioCard({
                   </SelectTrigger>
                   <SelectContent>
                     {crops.map((crop) => (
-                      <SelectItem key={crop} value={crop}>{crop}</SelectItem>
+                      <SelectItem key={crop} value={crop}>
+                        {crop}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -237,7 +278,7 @@ function ScenarioCard({
           )}
         </div>
 
-        {/* Production Parameters */}
+        {/* Production parameters */}
         {showProductionParams && (
           <div className="space-y-4 pt-3 border-t border-border">
             <div className="grid grid-cols-2 gap-3">
@@ -265,7 +306,7 @@ function ScenarioCard({
               </div>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label className="text-xs font-medium">Custos de Producao</Label>
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
@@ -300,6 +341,41 @@ function ScenarioCard({
                 </div>
               </div>
             </div>
+
+            {/* Live preview */}
+            {scenario.estimatedYield > 0 && scenario.estimatedPrice > 0 && (
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 space-y-1.5">
+                <p className="text-xs font-medium text-primary">Previsao rapida</p>
+                {(() => {
+                  const area = scenario.useExistingLot
+                    ? scenario.lotArea > 0
+                      ? scenario.lotArea
+                      : (existingLots.find((l) => l.id === scenario.existingLotId)?.area ?? 0)
+                    : scenario.tempLotArea
+                  const prod = scenario.estimatedYield * area
+                  const rev = prod * scenario.estimatedPrice
+                  const cost = scenario.laborCost + scenario.inputCost + scenario.otherCosts
+                  const profit = rev - cost
+                  return (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      <span className="text-muted-foreground">Producao:</span>
+                      <span className="font-medium text-foreground text-right">{prod.toFixed(0)} sc</span>
+                      <span className="text-muted-foreground">Receita:</span>
+                      <span className="font-medium text-foreground text-right">{formatCurrency(rev)}</span>
+                      <span className="text-muted-foreground">Lucro:</span>
+                      <span
+                        className={cn(
+                          "font-semibold text-right",
+                          profit >= 0 ? "text-green-600" : "text-red-600"
+                        )}
+                      >
+                        {formatCurrency(profit)}
+                      </span>
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -307,56 +383,67 @@ function ScenarioCard({
   )
 }
 
-// Comparison Result Panel
-function ComparisonPanel({ scenarios, results }: { scenarios: ScenarioData[], results: (CalculatedResult | null)[] }) {
+// ─── Comparison Panel ─────────────────────────────────────────────────────────
+
+function ComparisonPanel({
+  scenarios,
+  results,
+}: {
+  scenarios: ScenarioData[]
+  results: (CalculatedResult | null)[]
+}) {
   const validResults = results.filter((r): r is CalculatedResult => r !== null)
-  
+
   if (validResults.length < 2) {
     return (
       <Card className="border-dashed">
-        <CardContent className="py-12 text-center">
-          <Calculator className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">
-            Preencha pelo menos 2 cenarios para comparar resultados
+        <CardContent className="py-16 text-center">
+          <Calculator className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+          <p className="text-sm font-medium text-foreground mb-1">
+            Comparacao indisponivel
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Preencha pelo menos 2 cenarios completos para comparar resultados
           </p>
         </CardContent>
       </Card>
     )
   }
 
-  // Find the most viable scenario
   const sortedByProfit = [...validResults].sort((a, b) => b.profit - a.profit)
-  const bestScenario = sortedByProfit[0]
-  const bestScenarioData = scenarios.find((s, i) => results[i] === bestScenario)
-
-  // Find worst for comparison
-  const worstScenario = sortedByProfit[sortedByProfit.length - 1]
+  const bestResult = sortedByProfit[0]
+  const worstResult = sortedByProfit[sortedByProfit.length - 1]
+  const bestScenarioData = scenarios.find((_, i) => results[i] === bestResult)
 
   return (
     <div className="space-y-6">
-      {/* Winner Indicator */}
+      {/* Winner */}
       <Card className="border-green-500/30 bg-green-500/5">
-        <CardContent className="py-6">
+        <CardContent className="py-5">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-full bg-green-500/20 flex items-center justify-center">
+            <div className="h-14 w-14 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
               <Trophy className="h-7 w-7 text-green-600" />
             </div>
-            <div className="flex-1">
-              <p className="text-sm text-muted-foreground">Cenario mais viavel</p>
-              <p className="text-xl font-bold text-foreground">{bestScenarioData?.name || "Cenario"}</p>
-              <p className="text-sm text-green-600 mt-1">
-                {bestScenario.lot.name} - {bestScenario.lot.crop}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Cenario mais viavel</p>
+              <p className="text-xl font-bold text-foreground truncate">
+                {bestScenarioData?.name || "Cenario"}
+              </p>
+              <p className="text-sm text-muted-foreground truncate">
+                {bestResult.lot.name} — {bestResult.lot.crop} · {bestResult.lot.area} ha
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold text-green-600">{formatCurrency(bestScenario.profit)}</p>
-              <p className="text-sm text-muted-foreground">lucro projetado</p>
+            <div className="text-right shrink-0">
+              <p className="text-2xl font-bold text-green-600">
+                {formatCurrency(bestResult.profit)}
+              </p>
+              <p className="text-xs text-muted-foreground">lucro projetado</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Side-by-Side Comparison Table */}
+      {/* Side-by-side table */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -369,94 +456,135 @@ function ComparisonPanel({ scenarios, results }: { scenarios: ScenarioData[], re
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-3 px-3 font-medium text-muted-foreground">Metrica</th>
-                  {scenarios.map((s, i) => results[i] && (
-                    <th key={s.id} className="text-right py-3 px-3 font-medium text-muted-foreground">
-                      {s.name}
-                      {results[i] === bestScenario && (
-                        <CheckCircle2 className="h-4 w-4 text-green-500 inline ml-2" />
-                      )}
-                    </th>
-                  ))}
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-left py-3 px-3 font-medium text-muted-foreground">
+                    Metrica
+                  </th>
+                  {scenarios.map((s, i) =>
+                    results[i] ? (
+                      <th key={s.id} className="text-right py-3 px-3 font-medium text-muted-foreground">
+                        <span className="flex items-center justify-end gap-1">
+                          {s.name}
+                          {results[i] === bestResult && (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          )}
+                        </span>
+                      </th>
+                    ) : null
+                  )}
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-border/50">
-                  <td className="py-3 px-3 text-foreground">Lote / Cultura</td>
-                  {results.map((r, i) => r && (
-                    <td key={i} className="py-3 px-3 text-right text-foreground">
-                      {r.lot.name} / {r.lot.crop}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-b border-border/50">
-                  <td className="py-3 px-3 text-foreground">Area</td>
-                  {results.map((r, i) => r && (
-                    <td key={i} className="py-3 px-3 text-right text-foreground">{r.lot.area} ha</td>
-                  ))}
-                </tr>
-                <tr className="border-b border-border/50">
-                  <td className="py-3 px-3 text-foreground">Producao Total</td>
-                  {results.map((r, i) => r && (
-                    <td key={i} className="py-3 px-3 text-right text-foreground">{r.totalProduction.toFixed(0)} sc</td>
-                  ))}
-                </tr>
-                <tr className="border-b border-border/50">
-                  <td className="py-3 px-3 text-foreground">Custo Total</td>
-                  {results.map((r, i) => r && (
-                    <td key={i} className={`py-3 px-3 text-right font-medium ${r.totalCost === Math.min(...validResults.map(v => v.totalCost)) ? "text-green-600" : "text-foreground"}`}>
-                      {formatCurrency(r.totalCost)}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-b border-border/50">
-                  <td className="py-3 px-3 text-foreground">Receita Total</td>
-                  {results.map((r, i) => r && (
-                    <td key={i} className={`py-3 px-3 text-right font-medium ${r.totalRevenue === Math.max(...validResults.map(v => v.totalRevenue)) ? "text-green-600" : "text-foreground"}`}>
-                      {formatCurrency(r.totalRevenue)}
-                    </td>
-                  ))}
-                </tr>
+                {[
+                  {
+                    label: "Lote / Cultura",
+                    render: (r: CalculatedResult) => `${r.lot.name} / ${r.lot.crop}`,
+                    highlight: false,
+                  },
+                  {
+                    label: "Area",
+                    render: (r: CalculatedResult) => `${r.lot.area} ha`,
+                    highlight: false,
+                  },
+                  {
+                    label: "Producao Total",
+                    render: (r: CalculatedResult) => `${r.totalProduction.toFixed(0)} sc`,
+                    highlight: false,
+                  },
+                  {
+                    label: "Custo Total",
+                    render: (r: CalculatedResult) => formatCurrency(r.totalCost),
+                    best: (vals: number[]) => Math.min(...vals),
+                    vals: validResults.map((r) => r.totalCost),
+                    highlight: true,
+                  },
+                  {
+                    label: "Receita Total",
+                    render: (r: CalculatedResult) => formatCurrency(r.totalRevenue),
+                    best: (vals: number[]) => Math.max(...vals),
+                    vals: validResults.map((r) => r.totalRevenue),
+                    highlight: true,
+                  },
+                  {
+                    label: "Margem",
+                    render: (r: CalculatedResult) => `${r.margin.toFixed(1)}%`,
+                    best: (vals: number[]) => Math.max(...vals),
+                    vals: validResults.map((r) => r.margin),
+                    highlight: true,
+                  },
+                  {
+                    label: "ROI",
+                    render: (r: CalculatedResult) => `${r.roi.toFixed(1)}%`,
+                    best: (vals: number[]) => Math.max(...vals),
+                    vals: validResults.map((r) => r.roi),
+                    highlight: true,
+                  },
+                  {
+                    label: "Preco de Equilibrio",
+                    render: (r: CalculatedResult) => `${formatCurrency(r.breakEvenPrice)}/sc`,
+                    highlight: false,
+                  },
+                  {
+                    label: "Produtividade Min.",
+                    render: (r: CalculatedResult) => `${r.breakEvenYield.toFixed(1)} sc/ha`,
+                    highlight: false,
+                  },
+                ].map((row, rowIdx) => {
+                  const isBoldRow = row.label === "Lucro"
+                  return (
+                    <tr
+                      key={rowIdx}
+                      className={cn(
+                        "border-b border-border/50 last:border-0",
+                        isBoldRow && "bg-muted/50"
+                      )}
+                    >
+                      <td className="py-3 px-3 text-foreground font-medium">{row.label}</td>
+                      {results.map((r, i) =>
+                        r ? (
+                          <td
+                            key={i}
+                            className={cn(
+                              "py-3 px-3 text-right",
+                              row.highlight && row.vals && row.best
+                                ? r === validResults[validResults.indexOf(r)] &&
+                                  (() => {
+                                    const bestVal = row.best(row.vals!)
+                                    const myVal = row.vals![validResults.indexOf(r)]
+                                    return myVal === bestVal
+                                  })()
+                                  ? "text-green-600 font-medium"
+                                  : "text-foreground"
+                                : "text-foreground"
+                            )}
+                          >
+                            {row.render(r)}
+                          </td>
+                        ) : null
+                      )}
+                    </tr>
+                  )
+                })}
+                {/* Lucro row */}
                 <tr className="border-b border-border/50 bg-muted/50">
                   <td className="py-3 px-3 font-semibold text-foreground">Lucro</td>
-                  {results.map((r, i) => r && (
-                    <td key={i} className={`py-3 px-3 text-right font-bold ${r.profit >= 0 ? (r === bestScenario ? "text-green-600" : "text-foreground") : "text-red-600"}`}>
-                      {formatCurrency(r.profit)}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-b border-border/50">
-                  <td className="py-3 px-3 text-foreground">Margem</td>
-                  {results.map((r, i) => r && (
-                    <td key={i} className={`py-3 px-3 text-right font-medium ${r.margin === Math.max(...validResults.map(v => v.margin)) ? "text-green-600" : "text-foreground"}`}>
-                      {r.margin.toFixed(1)}%
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-b border-border/50">
-                  <td className="py-3 px-3 text-foreground">ROI</td>
-                  {results.map((r, i) => r && (
-                    <td key={i} className={`py-3 px-3 text-right font-medium ${r.roi === Math.max(...validResults.map(v => v.roi)) ? "text-green-600" : "text-foreground"}`}>
-                      {r.roi.toFixed(1)}%
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-b border-border/50">
-                  <td className="py-3 px-3 text-foreground">Preco de Equilibrio</td>
-                  {results.map((r, i) => r && (
-                    <td key={i} className="py-3 px-3 text-right text-foreground">
-                      {formatCurrency(r.breakEvenPrice)}/sc
-                    </td>
-                  ))}
-                </tr>
-                <tr>
-                  <td className="py-3 px-3 text-foreground">Produtividade Min.</td>
-                  {results.map((r, i) => r && (
-                    <td key={i} className="py-3 px-3 text-right text-foreground">
-                      {r.breakEvenYield.toFixed(1)} sc/ha
-                    </td>
-                  ))}
+                  {results.map((r, i) =>
+                    r ? (
+                      <td
+                        key={i}
+                        className={cn(
+                          "py-3 px-3 text-right font-bold",
+                          r.profit < 0
+                            ? "text-red-600"
+                            : r === bestResult
+                            ? "text-green-600"
+                            : "text-foreground"
+                        )}
+                      >
+                        {formatCurrency(r.profit)}
+                      </td>
+                    ) : null
+                  )}
                 </tr>
               </tbody>
             </table>
@@ -464,7 +592,7 @@ function ComparisonPanel({ scenarios, results }: { scenarios: ScenarioData[], re
         </CardContent>
       </Card>
 
-      {/* Decision Summary */}
+      {/* Decision summary */}
       <Card className="border-primary/30 bg-primary/5">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -472,56 +600,65 @@ function ComparisonPanel({ scenarios, results }: { scenarios: ScenarioData[], re
             Analise de Decisao
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="p-4 rounded-lg bg-background border border-border">
-              <p className="text-sm font-semibold text-foreground mb-2">Por que {bestScenarioData?.name} e mais viavel?</p>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                {bestScenario.totalCost < worstScenario.totalCost && (
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <p className="text-sm font-semibold text-foreground mb-3">
+                Por que &quot;{bestScenarioData?.name}&quot; e mais viavel?
+              </p>
+              <ul className="space-y-1.5">
+                {bestResult.totalCost < worstResult.totalCost && (
+                  <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                     Menor custo de producao
                   </li>
                 )}
-                {bestScenario.margin > worstScenario.margin && (
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                {bestResult.margin > worstResult.margin && (
+                  <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                     Melhor margem de lucro
                   </li>
                 )}
-                {bestScenario.roi > worstScenario.roi && (
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    Maior retorno sobre investimento
+                {bestResult.roi > worstResult.roi && (
+                  <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                    Maior retorno sobre investimento (ROI)
                   </li>
                 )}
-                {bestScenario.profit > worstScenario.profit && (
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                {bestResult.profit > worstResult.profit && (
+                  <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                     Maior lucro absoluto
                   </li>
                 )}
               </ul>
             </div>
+
             <div className="p-4 rounded-lg bg-background border border-border">
-              <p className="text-sm font-semibold text-foreground mb-2">Metricas-chave</p>
+              <p className="text-sm font-semibold text-foreground mb-3">Diferencas-chave</p>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Diferenca de lucro:</span>
-                  <span className="font-medium text-green-600">
-                    +{formatCurrency(bestScenario.profit - worstScenario.profit)}
+                  <span className="text-muted-foreground">Diferenca de lucro</span>
+                  <span
+                    className={cn(
+                      "font-medium",
+                      bestResult.profit - worstResult.profit >= 0 ? "text-green-600" : "text-red-600"
+                    )}
+                  >
+                    {bestResult.profit - worstResult.profit >= 0 ? "+" : ""}
+                    {formatCurrency(bestResult.profit - worstResult.profit)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Diferenca de margem:</span>
+                  <span className="text-muted-foreground">Diferenca de margem</span>
                   <span className="font-medium text-green-600">
-                    +{(bestScenario.margin - worstScenario.margin).toFixed(1)} p.p.
+                    +{(bestResult.margin - worstResult.margin).toFixed(1)} p.p.
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Diferenca de ROI:</span>
+                  <span className="text-muted-foreground">Diferenca de ROI</span>
                   <span className="font-medium text-green-600">
-                    +{(bestScenario.roi - worstScenario.roi).toFixed(1)} p.p.
+                    +{(bestResult.roi - worstResult.roi).toFixed(1)} p.p.
                   </span>
                 </div>
               </div>
@@ -533,39 +670,70 @@ function ComparisonPanel({ scenarios, results }: { scenarios: ScenarioData[], re
   )
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function SimulacaoPage() {
   const [scenarios, setScenarios] = useState<ScenarioData[]>([
     createEmptyScenario("1", "Cenario 1"),
     createEmptyScenario("2", "Cenario 2"),
   ])
-  const [existingLots, setExistingLots] = useState(existingLotsInitial)
+  const [existingLots, setExistingLots] = useState<ExistingLot[]>([])
 
   useEffect(() => {
     ;(async () => {
       try {
+        const res = await simulacoesApi.getLotesExistentes()
+        if (Array.isArray(res) && res.length > 0) {
+          setExistingLots(
+            res.map((r: any) => ({
+              id: String(r.id),
+              name: r.nomeLote || r.lote || `Lote ${r.id}`,
+              crop: r.cultura || "",
+              area: 0,
+            }))
+          )
+          return
+        }
+      } catch {
+        // fallback to getLotes
+      }
+      try {
         const res = await lotesApi.getLotes()
         if (Array.isArray(res)) {
-          setExistingLots(res.map((r: any) => ({ id: String(r.id), name: r.nomeLote || r.lote || `Lote ${r.id}`, crop: r.cultura || r.crop || "", area: r.area || r.tamanho || 0 })))
+          setExistingLots(
+            res.map((r: any) => ({
+              id: String(r.id),
+              name: r.nomeLote || r.lote || `Lote ${r.id}`,
+              crop: r.cultura || "",
+              area: 0,
+            }))
+          )
         }
       } catch (err) {
-        console.error("Failed to load existing lots", err)
+        console.error("Failed to load lots for simulation", err)
       }
     })()
   }, [])
 
-  const results = useMemo(() => scenarios.map(s => calculateResult(s, existingLots)), [scenarios, existingLots])
+  const results = useMemo(
+    () => scenarios.map((s) => calculateResult(s, existingLots)),
+    [scenarios, existingLots]
+  )
 
   const handleScenarioChange = useCallback((id: string, data: ScenarioData) => {
-    setScenarios(prev => prev.map(s => s.id === id ? data : s))
+    setScenarios((prev) => prev.map((s) => (s.id === id ? data : s)))
   }, [])
 
   const handleRemoveScenario = useCallback((id: string) => {
-    setScenarios(prev => prev.filter(s => s.id !== id))
+    setScenarios((prev) => prev.filter((s) => s.id !== id))
   }, [])
 
   const handleAddScenario = useCallback(() => {
     const newId = crypto.randomUUID()
-    setScenarios(prev => [...prev, createEmptyScenario(newId, `Cenario ${prev.length + 1}`)])
+    setScenarios((prev) => [
+      ...prev,
+      createEmptyScenario(newId, `Cenario ${prev.length + 1}`),
+    ])
   }, [])
 
   return (
@@ -573,24 +741,31 @@ export default function SimulacaoPage() {
       <Topbar title="Simulacoes" description="Compare cenarios e tome decisoes informadas" />
       <PageContainer>
         <div className="space-y-8">
-          {/* Introduction */}
+          {/* Intro */}
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="py-4">
               <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <Calculator className="h-6 w-6 text-primary" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground">Comparador de Cenarios</h3>
                   <p className="text-sm text-muted-foreground">
-                    Crie multiplos cenarios, compare metricas lado a lado e identifique a opcao mais viavel.
+                    Crie cenarios com lotes reais ou temporarios, informe produtividade e custos,
+                    e veja qual opcao e mais viavel.
                   </p>
+                </div>
+                <div className="ml-auto flex items-center gap-2 shrink-0">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  <span className="text-sm font-medium text-foreground">
+                    {results.filter(Boolean).length}/{scenarios.length} prontos
+                  </span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Scenario Creation Section */}
+          {/* Scenarios */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-foreground">Cenarios</h2>
@@ -600,7 +775,6 @@ export default function SimulacaoPage() {
               </Button>
             </div>
 
-            {/* Side-by-Side Scenario Cards */}
             <div className="grid md:grid-cols-2 gap-4">
               {scenarios.map((scenario) => (
                 <ScenarioCard
@@ -615,7 +789,7 @@ export default function SimulacaoPage() {
             </div>
           </div>
 
-          {/* Comparison Result Panel */}
+          {/* Results */}
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Resultado da Comparacao</h2>
             <ComparisonPanel scenarios={scenarios} results={results} />
