@@ -20,45 +20,23 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts"
-import type { Lote } from "@/src/types"
+import { useEffect, useState } from "react"
+import type { Lote as LoteType } from "@/src/types"
+import { dashboardApi, lotesApi, analyticsApi } from "@/src/api"
 
-const lots: Lote[] = [
-  { id: "1", name: "Lote A1", crop: "Milho", production: 185, cost: 11500, salePrice: 85, revenue: 15725, profit: 4225, margin: 26.9, status: "Ativo", area: 25 },
-  { id: "2", name: "Lote B2", crop: "Soja", production: 160, cost: 8800, salePrice: 120, revenue: 19200, profit: 10400, margin: 54.2, status: "Ativo", area: 30 },
-  { id: "3", name: "Lote C3", crop: "Cafe", production: 75, cost: 16200, salePrice: 180, revenue: 13500, profit: -2700, margin: -20.0, status: "Ativo", area: 15 },
-  { id: "4", name: "Lote D4", crop: "Trigo", production: 130, cost: 7200, salePrice: 70, revenue: 9100, profit: 1900, margin: 20.9, status: "Finalizado", area: 20 },
-  { id: "5", name: "Lote E5", crop: "Milho", production: 190, cost: 9800, salePrice: 85, revenue: 16150, profit: 6350, margin: 39.3, status: "Ativo", area: 35 },
-]
-
-const profitByLot = lots.map((l) => ({
-  name: l.name,
-  lucro: l.profit,
-  receita: l.revenue,
-  custo: l.cost,
-}))
-
-const profitOverTime = [
-  { month: "Jan", lucro: 2800 },
-  { month: "Fev", lucro: 3200 },
-  { month: "Mar", lucro: 1500 },
-  { month: "Abr", lucro: 4100 },
-  { month: "Mai", lucro: 3800 },
-  { month: "Jun", lucro: 5200 },
-]
-
-const recentActivity = [
-  { id: "1", type: "event", title: "Irrigacao realizada", description: "Lote A1 - Fazenda Sao Jose", time: "2 horas atras", icon: Activity },
-  { id: "2", type: "cultivation", title: "Novo cultivo iniciado", description: "Soja - Lote B1", time: "5 horas atras", icon: Sprout },
-  { id: "3", type: "harvest", title: "Colheita finalizada", description: "Alface - Lote C2", time: "1 dia atras", icon: Leaf },
-  { id: "4", type: "event", title: "Aplicacao de fertilizante", description: "Lote E5 - Fazenda Boa Vista", time: "2 dias atras", icon: Activity },
-  { id: "5", type: "lot", title: "Novo lote cadastrado", description: "Lote F6 - Fazenda Verde", time: "3 dias atras", icon: Grid3x3 },
-]
-
-const upcomingHarvests = [
-  { id: "1", crop: "Milho", lot: "Lote A3", date: "20 de Maio, 2025", daysRemaining: 15 },
-  { id: "2", crop: "Soja", lot: "Lote B1", date: "15 de Julho, 2025", daysRemaining: 127 },
-  { id: "3", crop: "Trigo", lot: "Lote D4", date: "10 de Agosto, 2025", daysRemaining: 153 },
-]
+type UILote = {
+  id: string
+  name: string
+  crop: string
+  production: number
+  cost: number
+  salePrice?: number
+  revenue: number
+  profit: number
+  margin: number
+  status: string
+  area?: number
+}
 
 const tooltipStyle = {
   backgroundColor: "var(--card)",
@@ -67,15 +45,71 @@ const tooltipStyle = {
   color: "var(--foreground)",
 }
 
+function mapApiLoteToUI(item: any): UILote {
+  const name = item.nomeLote || item.lote || `Lote ${item.id}`
+  const crop = item.cultura || item.crop || ""
+  const production = item.producao || item.producaoTotal || item.producaoEstimada || 0
+  const cost = item.custo || item.custoTotal || 0
+  const revenue = item.receita || item.receitaTotal || 0
+  const profit = item.lucroEstimado || item.lucro || item.lucroTotal || (revenue - cost)
+  const margin = revenue > 0 ? (profit / revenue) * 100 : 0
+  return {
+    id: String(item.id),
+    name,
+    crop,
+    production,
+    cost,
+    salePrice: item.precoVenda || item.precoEstimado,
+    revenue,
+    profit,
+    margin,
+    status: item.status || "",
+    area: item.area || item.tamanho || 0,
+  }
+}
+
+const initialProfitOverTime: { month: string; lucro: number }[] = []
+
 export default function DashboardPage() {
-  const totalProfit = lots.reduce((sum, l) => sum + l.profit, 0)
-  const totalRevenue = lots.reduce((sum, l) => sum + l.revenue, 0)
-  const totalCost = lots.reduce((sum, l) => sum + l.cost, 0)
-  const activeLots = lots.filter(l => l.status === "Ativo").length
+  const [lots, setLots] = useState<UILote[]>([])
+  const [profitOverTime, setProfitOverTime] = useState<{ month: string; lucro: number }[]>(initialProfitOverTime)
+  const [recentActivity, setRecentActivity] = useState<any[]>([])
+  const [upcomingHarvests, setUpcomingHarvests] = useState<any[]>([])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const lotes = await lotesApi.getLotes()
+        setLots((lotes || []).map(mapApiLoteToUI))
+
+        const tendencia = await analyticsApi.getTendenciaLucro()
+        if (Array.isArray(tendencia)) {
+          setProfitOverTime(tendencia.map((t: any) => ({ month: t.data || t.month || t.label || "", lucro: t.lucro || t.value || 0 })))
+        }
+
+        // fetch dashboard summary (optional)
+        try {
+          const dash = await dashboardApi.getDashboard()
+          // could use dash to set other UI pieces
+        } catch (_) {
+          // ignore
+        }
+      } catch (err) {
+        console.error("Failed to load dashboard data", err)
+      }
+    })()
+  }, [])
+
+  const totalProfit = lots.reduce((sum, l) => sum + (l.profit || 0), 0)
+  const totalRevenue = lots.reduce((sum, l) => sum + (l.revenue || 0), 0)
+  const totalCost = lots.reduce((sum, l) => sum + (l.cost || 0), 0)
+  const activeLots = lots.filter((l) => l.status === "ativo" || l.status === "Ativo").length
   const activeCultivos = 3
 
   const formatCurrency = (value: number) =>
     value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+
+  const profitByLot = lots.map((l) => ({ name: l.name, lucro: l.profit, receita: l.revenue, custo: l.cost }))
 
   return (
     <>

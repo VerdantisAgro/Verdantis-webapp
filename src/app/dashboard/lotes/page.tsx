@@ -7,16 +7,26 @@ import { Button } from "@/src/components/ui/button"
 import { Badge } from "@/src/components/ui/badge"
 import { Plus, Eye, Edit } from "lucide-react"
 import Link from "next/link"
-import type { Lote } from "@/src/types"
+import { useEffect, useState } from "react"
+import type { Lote as ApiLote } from "@/src/api/types"
+import { lotesApi } from "@/src/api"
 
-const lots: Lote[] = [
-  { id: "1", name: "Lote A1", crop: "Milho", production: 185, cost: 11500, salePrice: 85, revenue: 15725, profit: 4225, margin: 26.9, status: "Ativo", area: 25 },
-  { id: "2", name: "Lote B2", crop: "Soja", production: 160, cost: 8800, salePrice: 120, revenue: 19200, profit: 10400, margin: 54.2, status: "Ativo", area: 30 },
-  { id: "3", name: "Lote C3", crop: "Cafe", production: 75, cost: 16200, salePrice: 180, revenue: 13500, profit: -2700, margin: -20.0, status: "Ativo", area: 15 },
-  { id: "4", name: "Lote D4", crop: "Trigo", production: 130, cost: 7200, salePrice: 70, revenue: 9100, profit: 1900, margin: 20.9, status: "Finalizado", area: 20 },
-  { id: "5", name: "Lote E5", crop: "Milho", production: 190, cost: 9800, salePrice: 85, revenue: 16150, profit: 6350, margin: 39.3, status: "Ativo", area: 35 },
-  { id: "6", name: "Lote F6", crop: "Alface", production: 48, cost: 3200, salePrice: 55, revenue: 2640, profit: -560, margin: -21.2, status: "Em Preparo", area: 10 },
-]
+function mapApiLote(item: any) {
+  return {
+    id: String(item.id),
+    name: item.nomeLote || item.lote || `Lote ${item.id}`,
+    crop: item.cultura || item.crop || "",
+    production: item.producao || item.producaoTotal || 0,
+    cost: item.custo || item.custoTotal || 0,
+    salePrice: item.precoVenda || item.precoEstimado || 0,
+    revenue: item.receita || 0,
+    profit: item.lucroEstimado || item.lucro || (item.receita || 0) - (item.custo || 0),
+    margin: 0,
+    status: item.status || "",
+    area: item.area || 0,
+  }
+}
+
 
 const formatCurrency = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
@@ -31,6 +41,19 @@ function getStatusBadge(status: Lote["status"]) {
 }
 
 export default function LotesPage() {
+  const [lots, setLots] = useState<any[]>([])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await lotesApi.getLotes()
+        setLots((res || []).map(mapApiLote))
+      } catch (err) {
+        console.error("Failed to load lotes", err)
+      }
+    })()
+  }, [])
+
   return (
     <>
       <Topbar title="Lotes" description="Gerencie seus lotes e acompanhe a lucratividade" />

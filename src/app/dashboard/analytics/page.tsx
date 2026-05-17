@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Topbar } from "@/src/components/topbar"
 import { PageContainer } from "@/src/components/page-container"
 import { ChartCard } from "@/src/components/chart-card"
@@ -11,6 +11,7 @@ import { Badge } from "@/src/components/ui/badge"
 import { Maximize2, X, Calculator, TrendingUp, TrendingDown, Minus, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import type { CropMarketData } from "@/src/types"
+import { analyticsApi } from "@/src/api"
 import {
   BarChart,
   Bar,
@@ -26,13 +27,8 @@ import {
   Area,
 } from "recharts"
 
-// Extended crop market data
-const cropMarketData: CropMarketData[] = [
-  { id: "1", name: "Soja", imageUrl: "/crops/soybean.jpg", pricePerSack: 148.5, priceTrend: "up" },
-  { id: "2", name: "Milho", imageUrl: "/crops/corn.jpg", pricePerSack: 72.3, priceTrend: "down" },
-  { id: "3", name: "Trigo", imageUrl: "/crops/wheat.jpg", pricePerSack: 95.0, priceTrend: "stable" },
-  { id: "4", name: "Cafe", imageUrl: "/crops/coffee.jpg", pricePerSack: 1420.0, priceTrend: "up" },
-]
+// crop market data fetched from API
+const defaultMarket: CropMarketData[] = []
 
 // Extended market quotations
 const extendedMarketData = [
@@ -236,6 +232,21 @@ function MarketQuotationRow({
 }
 
 export default function AnalyticsPage() {
+  const [cropMarketData, setCropMarketData] = useState<CropMarketData[]>(defaultMarket)
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await analyticsApi.getCotacoes()
+        if (Array.isArray(res)) {
+          setCropMarketData(res.map((r: any, i: number) => ({ id: String(i + 1), name: r.cultura || r.name, imageUrl: `/crops/${(r.cultura || r.name).toLowerCase()}.jpg`, pricePerSack: r.precoSaca || r.pricePerSack || 0, priceTrend: "stable" })))
+        }
+      } catch (err) {
+        console.error("Failed to load cotacoes", err)
+      }
+    })()
+  }, [])
+
   return (
     <>
       <Topbar title="Analytics" description="Comparativos, insights e cotacoes de mercado" />

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Topbar } from "@/src/components/topbar"
 import { PageContainer } from "@/src/components/page-container"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card"
@@ -13,55 +13,11 @@ import { TraceabilityTimeline } from "@/src/components/traceability-timeline"
 import { TraceabilityEventForm } from "@/src/components/traceability-event-form"
 import { TraceabilityHashPanel } from "@/src/components/traceability-hash-panel"
 import { CultivationExport } from "@/src/components/cultivation-export"
+import { lotesApi } from "@/src/api"
 import { EventsDropdown, EventsHistoryModal } from "@/src/components/event-history-modal"
 import type { Cultivo, CropStatus, TraceabilityEvent, TraceabilityHash } from "@/src/types"
 
-const initialCultivos: Cultivo[] = [
-  {
-    id: "1", name: "Milho", lot: "Lote A3", loteId: "1",
-    status: "Em Crescimento", plantingDate: "15 de Janeiro, 2025", harvestDate: "20 de Maio, 2025",
-    area: 25, daysUntilHarvest: 15, progress: 85, irrigation: true, weather: true,
-    variety: "AG 8088 PRO3", expectedYield: 180, isComplete: false,
-    events: [
-      { id: "e1", lotId: "1", type: "SOIL_PREPARATION", description: "Preparo do solo com aracao profunda de 30cm para melhor drenagem", timestamp: new Date("2025-01-10") },
-      { id: "e2", lotId: "1", type: "INPUT_ADDITION", description: "Aplicacao de fertilizante NPK 10-10-10, 200kg/ha em toda area do lote", timestamp: new Date("2025-01-20") },
-      { id: "e3", lotId: "1", type: "IRRIGATION", description: "Irrigacao por gotejamento - sistema ativado por 4 horas", timestamp: new Date("2025-02-05") },
-      { id: "e4", lotId: "1", type: "PEST_CONTROL", description: "Aplicacao de defensivo biologico contra lagarta-do-cartucho", timestamp: new Date("2025-03-10") },
-      { id: "e5", lotId: "1", type: "FERTILIZATION", description: "Adubacao de cobertura com ureia, 150kg/ha", timestamp: new Date("2025-03-25") },
-      { id: "e6", lotId: "1", type: "INSPECTION", description: "Inspecao visual - plantas saudaveis, altura media 1.8m", timestamp: new Date("2025-04-05") },
-    ],
-  },
-  {
-    id: "2", name: "Soja", lot: "Lote B1", loteId: "2", 
-    status: "Plantio", plantingDate: "10 de Marco, 2025", harvestDate: "15 de Julho, 2025",
-    area: 30, daysUntilHarvest: 127, progress: 15, irrigation: true, weather: true,
-    variety: "M 6210 IPRO", expectedYield: 210, isComplete: false,
-    events: [
-      { id: "e7", lotId: "2", type: "SOIL_PREPARATION", description: "Calagem corretiva com 2 ton/ha de calcario dolomitico", timestamp: new Date("2025-02-20") },
-      { id: "e8", lotId: "2", type: "INPUT_ADDITION", description: "Inoculacao de sementes com Bradyrhizobium japonicum", timestamp: new Date("2025-03-08") },
-    ],
-  },
-  {
-    id: "3", name: "Alface", lot: "Lote C2", loteId: "3", 
-    status: "Colheita", plantingDate: "20 de Fevereiro, 2025", harvestDate: "05 de Abril, 2025",
-    area: 15, daysUntilHarvest: 0, progress: 100, irrigation: true, weather: true,
-    variety: "Crespa", expectedYield: 45, isComplete: true,
-    traceabilityHash: {
-      lotId: "3",
-      hash: "0xa3f7b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0",
-      generatedAt: new Date("2025-04-06"),
-      eventCount: 5,
-    },
-    events: [
-      { id: "e9", lotId: "3", type: "SOIL_PREPARATION", description: "Preparo de canteiros com composto organico incorporado", timestamp: new Date("2025-02-18") },
-      { id: "e10", lotId: "3", type: "INPUT_ADDITION", description: "Adubacao organica com composto curtido, 5kg/m2", timestamp: new Date("2025-02-22") },
-      { id: "e11", lotId: "3", type: "IRRIGATION", description: "Irrigacao por aspersao - 15 minutos, 2x ao dia", timestamp: new Date("2025-03-01") },
-      { id: "e12", lotId: "3", type: "FERTILIZATION", description: "Aplicacao de calcario dolomitico para correcao de pH", timestamp: new Date("2025-03-10") },
-      { id: "e13", lotId: "3", type: "INSPECTION", description: "Inspecao de qualidade - folhas saudaveis, sem pragas detectadas", timestamp: new Date("2025-03-25") },
-      { id: "e14", lotId: "3", type: "HARVEST", description: "Colheita manual realizada - 42 sacas colhidas com sucesso", timestamp: new Date("2025-04-05") },
-    ],
-  },
-]
+const initialCultivos: Cultivo[] = []
 
 function getStatusColor(status: CropStatus) {
   const map: Record<CropStatus, string> = {
@@ -216,33 +172,82 @@ function CropLotCard({ cultivo, onAddEvent, onFinalize }: CropLotCardProps) {
 }
 
 export default function CultivosPage() {
-  const [cultivos, setCultivos] = useState(initialCultivos)
+  const [cultivos, setCultivos] = useState<Cultivo[]>(initialCultivos)
 
-  const handleAddEvent = useCallback((cultivoId: string, event: TraceabilityEvent) => {
-    setCultivos((prev) =>
-      prev.map((c) =>
-        c.id === cultivoId
-          ? { ...c, events: [...(c.events || []), event] }
-          : c
-      )
-    )
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await lotesApi.getLotes()
+        // map lote items to Cultivo-ish objects
+        const mapped: Cultivo[] = (res || []).map((l: any) => ({
+          id: String(l.id),
+          name: l.cultura || l.crop || "",
+          lot: l.nomeLote || l.lote || `Lote ${l.id}`,
+          loteId: String(l.id),
+          status: l.status || "Em Crescimento",
+          plantingDate: l.plantingDate || "",
+          harvestDate: l.harvestDate || "",
+          area: l.area || 0,
+          daysUntilHarvest: 0,
+          progress: 0,
+          irrigation: true,
+          weather: true,
+          variety: l.variety || "",
+          expectedYield: l.producaoEstimada || l.producao || 0,
+          isComplete: Boolean(l.isComplete),
+          traceabilityHash: l.traceabilityHash ? { lotId: String(l.id), hash: l.hash || l.traceabilityHash.hash, generatedAt: l.traceabilityHash.generatedAt ? new Date(l.traceabilityHash.generatedAt) : new Date(), eventCount: l.traceabilityHash.eventCount || 0 } : undefined,
+          events: [],
+        }))
+        setCultivos(mapped)
+
+        // load events for each lote
+        await Promise.all(mapped.map(async (c) => {
+          try {
+            const ev = await lotesApi.getEventos(Number(c.loteId))
+            setCultivos((prev) => prev.map((p) => p.id === c.id ? { ...p, events: ev || [] } : p))
+          } catch (e) {
+            // ignore per-lote
+          }
+        }))
+      } catch (err) {
+        console.error("Failed to load cultivos", err)
+      }
+    })()
   }, [])
 
-  const handleFinalize = useCallback((cultivoId: string) => {
-    setCultivos((prev) =>
-      prev.map((c) => {
-        if (c.id !== cultivoId) return c
-        const events = c.events || []
-        const hash: TraceabilityHash = {
-          lotId: c.id,
-          hash: generateHash(events, c.id),
-          generatedAt: new Date(),
-          eventCount: events.length,
-        }
-        return { ...c, isComplete: true, traceabilityHash: hash, status: "Colheita" as CropStatus }
+  const handleAddEvent = useCallback(async (cultivoId: string, event: TraceabilityEvent) => {
+    try {
+      await lotesApi.postEvento(Number(cultivoId), {
+        loteId: Number(cultivoId),
+        tipoEvento: event.type,
+        descricao: event.description,
       })
-    )
+      // optimistic update
+      setCultivos((prev) => prev.map((c) => c.id === cultivoId ? { ...c, events: [...(c.events || []), event] } : c))
+    } catch (err) {
+      console.error("Failed to post event", err)
+    }
   }, [])
+
+  const handleFinalize = useCallback(async (cultivoId: string) => {
+    const cultivo = cultivos.find((c) => c.id === cultivoId)
+    if (!cultivo) return
+    try {
+      const payload = {
+        nomeLote: cultivo.lot,
+        cultura: cultivo.name,
+        producaoTotal: cultivo.expectedYield || 0,
+        custoTotal: 0,
+        precoVenda: cultivo.expectedYield || 0,
+      }
+      const res = await lotesApi.finalizarCultivo(Number(cultivoId), payload)
+      // res expected to have hashEventos, qrCode, arquivoPdf, arquivoTxt
+      const hashObj = res ? { lotId: cultivoId, hash: res.hashEventos || res.hash || "", generatedAt: new Date(), eventCount: (cultivo.events || []).length } : undefined
+      setCultivos((prev) => prev.map((c) => c.id === cultivoId ? { ...c, isComplete: true, traceabilityHash: hashObj as any, status: "Colheita" } : c))
+    } catch (err) {
+      console.error("Failed to finalize cultivo", err)
+    }
+  }, [cultivos])
 
   return (
     <>

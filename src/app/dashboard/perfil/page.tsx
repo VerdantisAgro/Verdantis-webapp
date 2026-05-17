@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Topbar } from "@/src/components/topbar"
 import { PageContainer } from "@/src/components/page-container"
 import { StatCard } from "@/src/components/stat-card"
@@ -12,9 +12,54 @@ import { Textarea } from "@/src/components/ui/textarea"
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar"
 import { Badge } from "@/src/components/ui/badge"
 import { User, Mail, Phone, MapPin, Calendar, Edit, Grid3x3, Sprout } from "lucide-react"
+import { usersApi } from "@/src/api"
 
 export default function PerfilPage() {
   const [isEditing, setIsEditing] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [profile, setProfile] = useState<{ id?: number; userName?: string; email?: string; phone?: string; location?: string; bio?: string; memberSince?: string } | null>(null)
+
+  useEffect(() => {
+    ;(async () => {
+      setLoading(true)
+      try {
+        const id = Number(localStorage.getItem("userId") || "0")
+        if (id) {
+          const user = await usersApi.getUserById(id)
+          setProfile({ id: user.id, userName: user.userName, email: user.email, phone: "", location: "", bio: "", memberSince: "" })
+        } else {
+          // Fallback to stored auth info
+          const name = localStorage.getItem("userName") || ""
+          const email = localStorage.getItem("userEmail") || ""
+          setProfile({ userName: name, email })
+        }
+      } catch (err) {
+        console.error("Failed to load profile", err)
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [])
+
+  const handleSave = () => {
+    // No update endpoint implemented; persist locally for now.
+    if (profile?.userName) localStorage.setItem("userName", profile.userName)
+    if (profile?.email) localStorage.setItem("userEmail", profile.email)
+    setIsEditing(false)
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Topbar title="Perfil" description="Carregando..." />
+        <PageContainer>
+          <Card>
+            <CardContent className="p-8 text-center text-muted-foreground">Carregando perfil...</CardContent>
+          </Card>
+        </PageContainer>
+      </>
+    )
+  }
 
   return (
     <>
@@ -26,10 +71,10 @@ export default function PerfilPage() {
             <Card>
               <CardContent className="flex flex-col items-center pt-8 pb-6 gap-4">
                 <Avatar className="h-24 w-24">
-                  <AvatarFallback className="bg-primary/10 text-primary text-2xl font-semibold">JP</AvatarFallback>
+                  <AvatarFallback className="bg-primary/10 text-primary text-2xl font-semibold">{(profile?.userName || "").split(" ").map(s => s[0]).slice(0,2).join("") || "U"}</AvatarFallback>
                 </Avatar>
                 <div className="text-center">
-                  <h3 className="text-lg font-bold text-foreground">Joao Pedro Silva</h3>
+                  <h3 className="text-lg font-bold text-foreground">{profile?.userName || "Usuário"}</h3>
                   <p className="text-sm text-muted-foreground">Produtor Rural</p>
                   <Badge className="mt-2 border-green-500/30 bg-green-500/10 text-green-700" variant="outline">
                     Conta Verificada
@@ -52,7 +97,10 @@ export default function PerfilPage() {
                 <AppButton
                   variant={isEditing ? "primary" : "secondary"}
                   size="md"
-                  onClick={() => setIsEditing(!isEditing)}
+                  onClick={() => {
+                    if (isEditing) handleSave()
+                    else setIsEditing(true)
+                  }}
                 >
                   {isEditing ? "Salvar" : "Editar"}
                 </AppButton>
@@ -63,14 +111,14 @@ export default function PerfilPage() {
                     <Label htmlFor="name">Nome Completo</Label>
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <Input id="name" defaultValue="Joao Pedro Silva" disabled={!isEditing} />
+                      <Input id="name" value={profile?.userName || ""} disabled={!isEditing} onChange={(e) => setProfile(p => ({ ...(p||{}), userName: e.target.value }))} />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <Input id="email" type="email" defaultValue="joao.silva@email.com" disabled={!isEditing} />
+                      <Input id="email" type="email" value={profile?.email || ""} disabled={!isEditing} onChange={(e) => setProfile(p => ({ ...(p||{}), email: e.target.value }))} />
                     </div>
                   </div>
                 </div>
@@ -80,14 +128,14 @@ export default function PerfilPage() {
                     <Label htmlFor="phone">Telefone</Label>
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <Input id="phone" defaultValue="(11) 98765-4321" disabled={!isEditing} />
+                      <Input id="phone" value={profile?.phone || ""} disabled={!isEditing} onChange={(e) => setProfile(p => ({ ...(p||{}), phone: e.target.value }))} />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="joined">Membro desde</Label>
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <Input id="joined" defaultValue="Janeiro 2024" disabled />
+                      <Input id="joined" value={profile?.memberSince || ""} disabled />
                     </div>
                   </div>
                 </div>
@@ -96,7 +144,7 @@ export default function PerfilPage() {
                   <Label htmlFor="address">Endereco</Label>
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <Input id="address" defaultValue="Zona Rural, Sao Paulo - SP" disabled={!isEditing} />
+                    <Input id="address" value={profile?.location || ""} disabled={!isEditing} onChange={(e) => setProfile(p => ({ ...(p||{}), location: e.target.value }))} />
                   </div>
                 </div>
 
@@ -105,9 +153,10 @@ export default function PerfilPage() {
                   <Textarea
                     id="bio"
                     placeholder="Conte um pouco sobre voce..."
-                    defaultValue="Produtor rural com 15 anos de experiencia em agricultura sustentavel."
+                    value={profile?.bio || ""}
                     disabled={!isEditing}
                     rows={3}
+                    onChange={(e) => setProfile(p => ({ ...(p||{}), bio: e.target.value }))}
                   />
                 </div>
               </CardContent>
@@ -118,22 +167,22 @@ export default function PerfilPage() {
           <div className="grid md:grid-cols-3 gap-4">
             <StatCard
               title="Lotes Ativos"
-              value="12"
+              value="--"
               icon={<Grid3x3 className="h-5 w-5 text-primary" />}
-              description="Distribuidos em 3 fazendas"
+              description="Carregando..."
             />
             <StatCard
               title="Cultivos em Andamento"
-              value="8"
+              value="--"
               icon={<Sprout className="h-5 w-5 text-primary" />}
-              description="Em diferentes estagios"
+              description="Carregando..."
             />
             <StatCard
               title="Lucro Acumulado"
-              value="R$ 20.175"
+              value="--"
               icon={<User className="h-5 w-5 text-primary" />}
               variant="success"
-              description="Safra atual"
+              description="Carregando..."
             />
           </div>
         </div>
