@@ -7,8 +7,7 @@ import { ChartCard } from "@/src/components/chart-card"
 import { CropMarketCard } from "@/src/components/crop-market-card"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card"
 import { Button } from "@/src/components/ui/button"
-import { Badge } from "@/src/components/ui/badge"
-import { Maximize2, X, Calculator, TrendingUp, TrendingDown, Minus, ArrowRight } from "lucide-react"
+import { Maximize2, X, Calculator, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import type { CropMarketData } from "@/src/types"
 import { analyticsApi } from "@/src/api"
@@ -27,19 +26,87 @@ import {
   Area,
 } from "recharts"
 
-// crop market data fetched from API
-const defaultMarket: CropMarketData[] = []
-
-// Extended market quotations
-const extendedMarketData = [
-  { id: "5", name: "Arroz", price: 85.0, change: 2.3, trend: "up" as const },
-  { id: "6", name: "Feijao", price: 320.0, change: -1.5, trend: "down" as const },
-  { id: "7", name: "Algodao", price: 195.0, change: 0.8, trend: "up" as const },
-  { id: "8", name: "Cana-de-Acucar", price: 0.95, change: 0.0, trend: "stable" as const },
-  { id: "9", name: "Laranja", price: 42.0, change: 3.2, trend: "up" as const },
-  { id: "10", name: "Cacau", price: 280.0, change: -2.1, trend: "down" as const },
-  { id: "11", name: "Sorgo", price: 58.0, change: 1.1, trend: "up" as const },
-  { id: "12", name: "Amendoim", price: 165.0, change: -0.5, trend: "down" as const },
+const STATIC_CROPS: CropMarketData[] = [
+  {
+    id: "1",
+    name: "Milho",
+    imageUrl: "/milho.png",
+    pricePerSack: 64,
+    priceMin: 58,
+    priceMax: 70,
+    unit: "saca 60 kg",
+    priceTrend: "stable",
+  },
+  {
+    id: "2",
+    name: "Soja",
+    imageUrl: "/soja.png",
+    pricePerSack: 135,
+    priceMin: 125,
+    priceMax: 145,
+    unit: "saca 60 kg",
+    priceTrend: "up",
+  },
+  {
+    id: "3",
+    name: "Trigo",
+    imageUrl: "/trigo.png",
+    pricePerSack: 85,
+    priceMin: 75,
+    priceMax: 95,
+    unit: "saca 60 kg",
+    priceTrend: "stable",
+  },
+  {
+    id: "4",
+    name: "Cafe Arabica",
+    imageUrl: "/cafe.png",
+    pricePerSack: 2150,
+    priceMin: 1900,
+    priceMax: 2400,
+    unit: "saca 60 kg · min. oficial R$ 793",
+    priceTrend: "up",
+  },
+  {
+    id: "5",
+    name: "Tomate",
+    imageUrl: "/tomate.png",
+    pricePerSack: 125,
+    priceMin: 80,
+    priceMax: 170,
+    unit: "caixa 20 kg",
+    priceTrend: "down",
+  },
+  {
+    id: "6",
+    name: "Feijao",
+    imageUrl: "/feijao.png",
+    pricePerSack: 250,
+    priceMin: 180,
+    priceMax: 320,
+    unit: "saca 60 kg",
+    priceTrend: "up",
+  },
+  {
+    id: "7",
+    name: "Alface",
+    imageUrl: "/alface.png",
+    pricePerSack: 42,
+    priceMin: 25,
+    priceMax: 60,
+    unit: "caixa (unidades)",
+    priceTrend: "stable",
+  },
+  {
+    id: "8",
+    name: "Arroz",
+    imageUrl: "/arroz.png",
+    pricePerSack: 72,
+    priceMin: 60,
+    priceMax: 85,
+    unit: "saca 50 kg",
+    priceTrend: "stable",
+  },
 ]
 
 const profitComparison = [
@@ -188,61 +255,29 @@ function ExpandableChartCard({
   )
 }
 
-// Market Quotation Row
-function MarketQuotationRow({ 
-  name, 
-  price, 
-  change, 
-  trend 
-}: { 
-  name: string
-  price: number
-  change: number
-  trend: "up" | "down" | "stable"
-}) {
-  const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus
-  const trendColor = trend === "up" ? "text-green-600" : trend === "down" ? "text-red-600" : "text-muted-foreground"
-  const bgColor = trend === "up" ? "bg-green-500/10" : trend === "down" ? "bg-red-500/10" : "bg-muted"
-
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-border last:border-0">
-      <div className="flex items-center gap-3">
-        <div className={`h-8 w-8 rounded-full ${bgColor} flex items-center justify-center`}>
-          <TrendIcon className={`h-4 w-4 ${trendColor}`} />
-        </div>
-        <span className="font-medium text-foreground">{name}</span>
-      </div>
-      <div className="flex items-center gap-4">
-        <span className="font-semibold text-foreground">{formatCurrency(price)}/sc</span>
-        <Badge 
-          variant="outline" 
-          className={
-            trend === "up" 
-              ? "border-green-500/30 bg-green-500/10 text-green-700" 
-              : trend === "down"
-              ? "border-red-500/30 bg-red-500/10 text-red-700"
-              : "border-muted-foreground/30 bg-muted text-muted-foreground"
-          }
-        >
-          {change >= 0 ? "+" : ""}{change}%
-        </Badge>
-      </div>
-    </div>
-  )
-}
-
 export default function AnalyticsPage() {
-  const [cropMarketData, setCropMarketData] = useState<CropMarketData[]>(defaultMarket)
+  const [cropMarketData, setCropMarketData] = useState<CropMarketData[]>(STATIC_CROPS)
 
   useEffect(() => {
     ;(async () => {
       try {
         const res = await analyticsApi.getCotacoes()
-        if (Array.isArray(res)) {
-          setCropMarketData(res.map((r: any, i: number) => ({ id: String(i + 1), name: r.cultura || r.name, imageUrl: `/crops/${(r.cultura || r.name).toLowerCase()}.jpg`, pricePerSack: r.precoSaca || r.pricePerSack || 0, priceTrend: "stable" })))
+        if (Array.isArray(res) && res.length > 0) {
+          setCropMarketData((prev) =>
+            prev.map((crop) => {
+              const apiMatch = res.find(
+                (r: any) =>
+                  (r.cultura || r.name || "").toLowerCase() === crop.name.toLowerCase()
+              )
+              if (apiMatch) {
+                return { ...crop, pricePerSack: apiMatch.precoSaca ?? crop.pricePerSack }
+              }
+              return crop
+            })
+          )
         }
-      } catch (err) {
-        console.error("Failed to load cotacoes", err)
+      } catch {
+        // keep static data on API failure
       }
     })()
   }, [])
@@ -280,34 +315,16 @@ export default function AnalyticsPage() {
 
           {/* Crop Market Cards */}
           <div>
-            <h2 className="text-sm font-semibold text-foreground mb-3">Cotacoes de Mercado - Principais Culturas</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="text-sm font-semibold text-foreground">Cotacoes de Mercado</h2>
+              <p className="text-xs text-muted-foreground">Faixas de preco de referencia · 2025</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {cropMarketData.map((crop) => (
                 <CropMarketCard key={crop.id} {...crop} />
               ))}
             </div>
           </div>
-
-          {/* Extended Market Quotations */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Cotacoes Adicionais</CardTitle>
-              <CardDescription>Precos e tendencias de outras culturas</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-x-8">
-                {extendedMarketData.map((item) => (
-                  <MarketQuotationRow 
-                    key={item.id}
-                    name={item.name}
-                    price={item.price}
-                    change={item.change}
-                    trend={item.trend}
-                  />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Row 1: Profit comparison + Profit by crop */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

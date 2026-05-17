@@ -60,6 +60,9 @@ export interface CropMarketData {
   name: string
   imageUrl: string
   pricePerSack: number
+  priceMin?: number
+  priceMax?: number
+  unit?: string
   priceTrend: "up" | "down" | "stable"
 }
 
