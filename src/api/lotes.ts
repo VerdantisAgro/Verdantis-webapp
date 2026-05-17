@@ -16,6 +16,11 @@ export const getLoteById = async (id: number) => {
   return res.data;
 };
 
+export const updateLote = async (id: number, payload: { nomeLote: string; cultura: string; producaoTotal: number; custoTotal: number; precoVenda: number }) => {
+  const res = await apiClient.put(`/lotes/${id}`, payload);
+  return res.data;
+};
+
 export const deleteLote = async (id: number) => {
   const res = await apiClient.delete(`/lotes/${id}`);
   return res.data;
@@ -38,6 +43,7 @@ export const finalizarCultivo = async (id: number, payload: { nomeLote: string; 
 
 export default {
   createLote,
+  updateLote,
   getLotes,
   getLoteById,
   deleteLote,

@@ -1,94 +1,223 @@
 "use client"
 
 import Link from "next/link"
+import { useParams, useRouter } from "next/navigation"
 import { Topbar } from "@/src/components/topbar"
 import { PageContainer } from "@/src/components/page-container"
 import { StatCard } from "@/src/components/stat-card"
 import { Button } from "@/src/components/ui/button"
 import { Badge } from "@/src/components/ui/badge"
-import { ArrowLeft, DollarSign, TrendingUp, TrendingDown, Percent } from "lucide-react"
-
+import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card"
+import {
+  ArrowLeft,
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Percent,
+  Pencil,
+  Trash2,
+} from "lucide-react"
 import { useEffect, useState } from "react"
 import { lotesApi } from "@/src/api"
+import { cn } from "@/src/lib/utils"
 
-const defaultLot = {
-  id: "",
-  name: "",
-  crop: "",
-  production: 0,
-  cost: 0,
-  salePrice: 0,
-  revenue: 0,
-  profit: 0,
-  margin: 0,
-  status: "",
-  area: 0,
+type UILote = {
+  id: string
+  name: string
+  crop: string
+  production: number
+  cost: number
+  salePrice: number
+  revenue: number
+  profit: number
+  margin: number
+  status: string
 }
 
 const formatCurrency = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
+const STATUS_MAP: Record<string, string> = {
+  ativo: "Ativo",
+  finalizado: "Finalizado",
+  "em preparo": "Em Preparo",
+  em_preparo: "Em Preparo",
+}
+
+function normalizeStatus(status: string): string {
+  return STATUS_MAP[status.toLowerCase()] ?? status
+}
+
+const STATUS_CLASSES: Record<string, string> = {
+  Ativo: "border-green-500/30 bg-green-500/10 text-green-700",
+  Finalizado: "border-muted-foreground/30 bg-muted text-muted-foreground",
+  "Em Preparo": "border-amber-500/30 bg-amber-500/10 text-amber-700",
+}
+
 export default function LoteDetailPage() {
-  const [lot, setLot] = useState<any>(defaultLot)
+  const params = useParams()
+  const router = useRouter()
+  const id = params.id as string
+
+  const [lot, setLot] = useState<UILote | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
+    if (!id) return
     ;(async () => {
       try {
-        // obtain id from URL
-        const path = window.location.pathname
-        const id = path.split("/").filter(Boolean).pop()
-        if (!id) return
         const res = await lotesApi.getLoteById(Number(id))
-        const api = res && res[0] ? res[0] : res
+        const api = Array.isArray(res) ? res[0] : res
+        if (!api) return
+        const production = api.producao ?? api.producaoTotal ?? 0
+        const cost = api.custo ?? api.custoTotal ?? 0
+        const salePrice = api.precoVenda ?? 0
+        const revenue = api.receita ?? production * salePrice
+        const profit = api.lucroEstimado ?? api.lucro ?? revenue - cost
+        const margin = revenue > 0 ? (profit / revenue) * 100 : 0
         setLot({
           id: String(api.id),
           name: api.nomeLote || api.lote || `Lote ${api.id}`,
-          crop: api.cultura || api.crop || "",
-          production: api.producao || api.producaoTotal || 0,
-          cost: api.custo || api.custoTotal || 0,
-          salePrice: api.precoVenda || 0,
-          revenue: api.receita || 0,
-          profit: api.lucroEstimado || api.lucro || (api.receita || 0) - (api.custo || 0),
-          margin: 0,
-          status: api.status || "",
-          area: api.area || 0,
+          crop: api.cultura || "",
+          production,
+          cost,
+          salePrice,
+          revenue,
+          profit,
+          margin,
+          status: api.status ? normalizeStatus(api.status) : "",
         })
       } catch (err) {
         console.error("Failed to load lote", err)
+      } finally {
+        setLoading(false)
       }
     })()
-  }, [])
+  }, [id])
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await lotesApi.deleteLote(Number(id))
+      router.push("/dashboard/lotes")
+    } catch (err) {
+      console.error("Failed to delete lote", err)
+      setDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Topbar title="Lote" description="Carregando..." />
+        <PageContainer>
+          <div className="space-y-4">
+            <div className="h-8 w-24 rounded bg-muted animate-pulse" />
+            <div className="grid grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-24 rounded-lg bg-muted animate-pulse" />
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="h-40 rounded-lg bg-muted animate-pulse" />
+              <div className="h-40 rounded-lg bg-muted animate-pulse" />
+            </div>
+          </div>
+        </PageContainer>
+      </>
+    )
+  }
+
+  if (!lot) {
+    return (
+      <>
+        <Topbar title="Lote" description="Nao encontrado" />
+        <PageContainer>
+          <div className="py-20 text-center">
+            <p className="text-muted-foreground mb-4">Lote nao encontrado ou foi removido.</p>
+            <Link href="/dashboard/lotes">
+              <Button>Voltar para Lotes</Button>
+            </Link>
+          </div>
+        </PageContainer>
+      </>
+    )
+  }
 
   return (
     <>
-      <Topbar title={`Lote ${lot.name}`} description={`${lot.crop} - ${lot.area} ha`} />
+      <Topbar title={lot.name} description={`${lot.crop}${lot.status ? ` · ${lot.status}` : ""}`} />
       <PageContainer>
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          {/* Top actions bar */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <Link href="/dashboard/lotes">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Voltar para Lotes
               </Button>
             </Link>
-            <Badge
-              variant="outline"
-              className={
-                lot.profit >= 0
-                  ? "border-green-500/30 bg-green-500/10 text-green-700"
-                  : "border-red-500/30 bg-red-500/10 text-red-700"
-              }
-            >
-              {lot.profit >= 0 ? "Lucrativo" : "Prejuizo"}
-            </Badge>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {lot.status && (
+                <Badge
+                  variant="outline"
+                  className={STATUS_CLASSES[lot.status] ?? "border-muted-foreground/30 bg-muted text-muted-foreground"}
+                >
+                  {lot.status}
+                </Badge>
+              )}
+              <Link href={`/dashboard/lotes/${id}/editar`}>
+                <Button variant="outline" size="sm">
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar
+                </Button>
+              </Link>
+              {confirmDelete ? (
+                <>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={deleting}
+                    onClick={handleDelete}
+                  >
+                    {deleting ? "Excluindo..." : "Confirmar exclusao"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    Cancelar
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </Button>
+              )}
+            </div>
           </div>
 
-          {/* Key Stats */}
+          {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               title="Lucro"
               value={formatCurrency(lot.profit)}
-              icon={<DollarSign className={`h-5 w-5 ${lot.profit >= 0 ? "text-green-600" : "text-red-600"}`} />}
+              icon={
+                <DollarSign
+                  className={cn("h-5 w-5", lot.profit >= 0 ? "text-green-600" : "text-red-600")}
+                />
+              }
               variant={lot.profit >= 0 ? "success" : "danger"}
             />
             <StatCard
@@ -104,50 +233,65 @@ export default function LoteDetailPage() {
             <StatCard
               title="Margem"
               value={`${lot.margin >= 0 ? "+" : ""}${lot.margin.toFixed(1)}%`}
-              icon={<Percent className={`h-5 w-5 ${lot.margin >= 0 ? "text-green-600" : "text-red-600"}`} />}
+              icon={
+                <Percent
+                  className={cn("h-5 w-5", lot.margin >= 0 ? "text-green-600" : "text-red-600")}
+                />
+              }
               variant={lot.margin >= 0 ? "success" : "danger"}
             />
           </div>
 
-          {/* Production & Financial Details */}
+          {/* Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-              <h3 className="font-semibold text-foreground">Producao</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Producao Total</span>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-foreground">Producao</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Cultura</span>
+                  <span className="font-medium text-foreground">{lot.crop || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Producao Total</span>
                   <span className="font-medium text-foreground">{lot.production} sacas</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Preco de Venda</span>
-                  <span className="font-medium text-foreground">{formatCurrency(lot.salePrice)}/saca</span>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Preco de Venda</span>
+                  <span className="font-medium text-foreground">
+                    {lot.salePrice > 0 ? `${formatCurrency(lot.salePrice)}/saca` : "—"}
+                  </span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Cultura</span>
-                  <span className="font-medium text-foreground">{lot.crop}</span>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
-            <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-              <h3 className="font-semibold text-foreground">Financeiro</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Custo Total</span>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-foreground">Financeiro</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Custo Total</span>
                   <span className="font-medium text-foreground">{formatCurrency(lot.cost)}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Receita</span>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Receita</span>
                   <span className="font-medium text-foreground">{formatCurrency(lot.revenue)}</span>
                 </div>
-                <div className="flex items-center justify-between border-t border-border pt-3">
-                  <span className="text-sm font-semibold text-foreground">Lucro Liquido</span>
-                  <span className={`font-bold text-lg ${lot.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                <div className="flex items-center justify-between text-sm border-t border-border pt-3">
+                  <span className="font-semibold text-foreground">Lucro Liquido</span>
+                  <span
+                    className={cn(
+                      "font-bold text-base",
+                      lot.profit >= 0 ? "text-green-600" : "text-red-600"
+                    )}
+                  >
                     {formatCurrency(lot.profit)}
                   </span>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </PageContainer>
