@@ -74,7 +74,7 @@ const createEmptyScenario = (id: string, name: string): ScenarioData => ({
   otherCosts: 0,
 })
 
-function calculateResult(scenario: ScenarioData): CalculatedResult | null {
+function calculateResult(scenario: ScenarioData, existingLots: { id: string; name: string; crop: string; area: number }[]): CalculatedResult | null {
   let lot: SimulationLot
 
   if (scenario.useExistingLot) {
@@ -553,7 +553,7 @@ export default function SimulacaoPage() {
     })()
   }, [])
 
-  const results = useMemo(() => scenarios.map(calculateResult), [scenarios])
+  const results = useMemo(() => scenarios.map(s => calculateResult(s, existingLots)), [scenarios, existingLots])
 
   const handleScenarioChange = useCallback((id: string, data: ScenarioData) => {
     setScenarios(prev => prev.map(s => s.id === id ? data : s))
