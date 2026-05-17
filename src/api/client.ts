@@ -1,7 +1,7 @@
 import axios from "axios";
 
 export const apiClient = axios.create({
-  baseURL: "https://vitsapi.onrender.com/api",
+  baseURL: "https://vitsapi.onrender.com",
   headers: {
     "Content-Type": "application/json",
   },
