@@ -34,7 +34,7 @@ import {
 import { useEffect, useState } from "react"
 import { lotesApi, analyticsApi } from "@/src/api"
 import { cn } from "@/src/lib/utils"
-import { formatCurrency } from "@/src/lib/format"
+import { formatCurrency, formatMonth } from "@/src/lib/format"
 import { getSessionUser } from "@/src/lib/session"
 import { mapApiLote, STATUS_CLASSES, type UILote } from "@/src/lib/lotes"
 
@@ -65,16 +65,11 @@ export default function DashboardPage() {
         ])
 
         if (lotesRes.status === "fulfilled") {
-          setLots((lotesRes.value || []).map(mapApiLote))
+          setLots(lotesRes.value.map(mapApiLote))
         }
 
-        if (tendenciaRes.status === "fulfilled" && Array.isArray(tendenciaRes.value)) {
-          setProfitOverTime(
-            tendenciaRes.value.map((t: any) => ({
-              month: t.cultura || t.data || t.month || t.label || "",
-              lucro: t.tendenciaLucro || t.lucro || t.value || 0,
-            }))
-          )
+        if (tendenciaRes.status === "fulfilled") {
+          setProfitOverTime(tendenciaRes.value.map((t) => ({ month: formatMonth(t.mes), lucro: t.lucro })))
         }
       } catch (err) {
         console.error("Failed to load dashboard data", err)

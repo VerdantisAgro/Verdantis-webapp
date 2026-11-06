@@ -39,12 +39,9 @@ export default function LoteDetailPage() {
     if (!id) return
     ;(async () => {
       try {
-        const res = await lotesApi.getLoteById(Number(id))
-        const api = Array.isArray(res) ? res[0] : res
-        if (!api) return
-        setLot(mapApiLote(api))
+        setLot(mapApiLote(await lotesApi.getLoteById(id)))
       } catch (err) {
-        console.error("Failed to load lote", err)
+        toast.error(getErrorMessage(err, "Nao foi possivel carregar o lote."))
       } finally {
         setLoading(false)
       }
@@ -54,7 +51,7 @@ export default function LoteDetailPage() {
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      await lotesApi.deleteLote(Number(id))
+      await lotesApi.deleteLote(id)
       router.push("/dashboard/lotes")
     } catch (err) {
       toast.error(getErrorMessage(err, "Nao foi possivel excluir o lote."))

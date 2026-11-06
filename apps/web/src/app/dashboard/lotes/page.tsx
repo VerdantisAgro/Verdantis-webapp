@@ -53,7 +53,7 @@ export default function LotesPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id)
     try {
-      await lotesApi.deleteLote(Number(id))
+      await lotesApi.deleteLote(id)
       setLots((prev) => prev.filter((l) => l.id !== id))
     } catch (err) {
       toast.error(getErrorMessage(err, "Nao foi possivel excluir o lote."))

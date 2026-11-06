@@ -12,7 +12,7 @@ export interface Lote {
   revenue: number
   profit: number
   margin: number
-  status: "Ativo" | "Finalizado" | "Em Preparo"
+  status: "Ativo" | "Finalizado"
   area?: number
 }
 
@@ -124,11 +124,13 @@ export interface TraceabilityEvent {
   type: TraceabilityEventType
   description: string
   timestamp: Date
+  hash?: string
 }
 
 export interface TraceabilityHash {
   lotId: string
   hash: string
+  verificationCode: string
   generatedAt: Date
   eventCount: number
 }

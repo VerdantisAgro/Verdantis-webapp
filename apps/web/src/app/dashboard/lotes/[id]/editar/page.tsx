@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useMemo, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { lotesApi, getErrorMessage } from "@/src/api"
+import { lotesApi, getErrorMessage, type Lote } from "@/src/api"
 import Link from "next/link"
 import { Topbar } from "@/src/components/topbar"
 import { PageContainer } from "@/src/components/page-container"
@@ -28,6 +28,7 @@ export default function EditarLotePage() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [original, setOriginal] = useState<Lote | null>(null)
   const [formData, setFormData] = useState<LoteFormData>({
     name: "",
     cropId: "",
@@ -40,15 +41,14 @@ export default function EditarLotePage() {
     if (!id) return
     ;(async () => {
       try {
-        const res = await lotesApi.getLoteById(Number(id))
-        const api = Array.isArray(res) ? res[0] : res
-        if (!api) return
+        const lote = await lotesApi.getLoteById(id)
+        setOriginal(lote)
         setFormData({
-          name: api.nomeLote || api.lote || "",
-          cropId: api.cultura || "",
-          production: api.producao ?? api.producaoTotal ?? 0,
-          cost: api.custo ?? api.custoTotal ?? 0,
-          salePrice: api.precoVenda ?? 0,
+          name: lote.nomeLote,
+          cropId: lote.cultura,
+          production: lote.producaoTotal,
+          cost: lote.custoTotal,
+          salePrice: lote.precoVenda,
         })
       } catch (err) {
         toast.error(getErrorMessage(err, "Nao foi possivel carregar o lote."))
@@ -67,10 +67,12 @@ export default function EditarLotePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!original) return
     setSaving(true)
     ;(async () => {
       try {
-        await lotesApi.updateLote(Number(id), {
+        await lotesApi.updateLote(id, {
+          ...lotesApi.toLoteInput(original),
           nomeLote: formData.name,
           cultura: formData.cropId,
           producaoTotal: formData.production,

@@ -20,7 +20,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 import type { SimulationLot } from "@/src/types"
-import { simulacoesApi, lotesApi } from "@/src/api"
+import { lotesApi } from "@/src/api"
 import { cn } from "@/src/lib/utils"
 import { formatCurrency } from "@/src/lib/format"
 import { CROPS } from "@/src/lib/lotes"
@@ -681,35 +681,17 @@ export default function SimulacaoPage() {
   useEffect(() => {
     ;(async () => {
       try {
-        const res = await simulacoesApi.getLotesExistentes()
-        if (Array.isArray(res) && res.length > 0) {
-          setExistingLots(
-            res.map((r: any) => ({
-              id: String(r.id),
-              name: r.nomeLote || r.lote || `Lote ${r.id}`,
-              crop: r.cultura || "",
-              area: 0,
-            }))
-          )
-          return
-        }
+        const lotes = await lotesApi.getLotes()
+        setExistingLots(
+          lotes.map((l) => ({
+            id: String(l.id),
+            name: l.nomeLote,
+            crop: l.cultura,
+            area: l.areaHectares,
+          })),
+        )
       } catch {
-        // fallback to getLotes
-      }
-      try {
-        const res = await lotesApi.getLotes()
-        if (Array.isArray(res)) {
-          setExistingLots(
-            res.map((r: any) => ({
-              id: String(r.id),
-              name: r.nomeLote || r.lote || `Lote ${r.id}`,
-              crop: r.cultura || "",
-              area: 0,
-            }))
-          )
-        }
-      } catch (err) {
-        console.error("Failed to load lots for simulation", err)
+        // simulation still works with temporary lots
       }
     })()
   }, [])

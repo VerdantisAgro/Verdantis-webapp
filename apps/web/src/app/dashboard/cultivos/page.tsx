@@ -16,8 +16,7 @@ import { CultivationExport } from "@/src/components/cultivation-export"
 import { toast } from "sonner"
 import { lotesApi, getErrorMessage } from "@/src/api"
 import { EventsDropdown } from "@/src/components/event-history-modal"
-import { fetchCultivoEvents, hashFromFinalize, loteToCultivo } from "@/src/lib/cultivos"
-import { mapApiLote } from "@/src/lib/lotes"
+import { fetchCultivoEvents, hashFromCertificate, loteToCultivo } from "@/src/lib/cultivos"
 import { getSessionUser } from "@/src/lib/session"
 import type { Cultivo, CropStatus, TraceabilityEvent } from "@/src/types"
 
@@ -34,7 +33,7 @@ function getStatusColor(status: CropStatus) {
 interface CropLotCardProps {
   cultivo: Cultivo
   onAddEvent: (cultivoId: string, event: TraceabilityEvent) => void
-  onFinalize: (cultivoId: string) => void
+  onFinalize: (cultivoId: string) => Promise<void>
   farmerName: string
 }
 
@@ -178,7 +177,7 @@ export default function CultivosPage() {
     ;(async () => {
       try {
         const res = await lotesApi.getLotes()
-        const mapped = (res || []).map((l) => loteToCultivo(l))
+        const mapped = res.map(loteToCultivo)
         setCultivos(mapped)
 
         await Promise.all(
@@ -201,8 +200,7 @@ export default function CultivosPage() {
   const handleAddEvent = useCallback(
     async (cultivoId: string, event: TraceabilityEvent) => {
       try {
-        await lotesApi.postEvento(Number(cultivoId), {
-          loteId: Number(cultivoId),
+        await lotesApi.postEvento(cultivoId, {
           tipoEvento: event.type,
           descricao: event.description,
         })
@@ -220,18 +218,11 @@ export default function CultivosPage() {
       const cultivo = cultivos.find((c) => c.id === cultivoId)
       if (!cultivo || cultivo.isComplete) return
       try {
-        const lote = mapApiLote(await lotesApi.getLoteById(Number(cultivoId)))
-        const res = await lotesApi.finalizarCultivo(Number(cultivoId), {
-          nomeLote: lote.name,
-          cultura: lote.crop,
-          producaoTotal: lote.production,
-          custoTotal: lote.cost,
-          precoVenda: lote.salePrice,
-        })
+        const cert = await lotesApi.finalizar(cultivoId)
         updateCultivo(cultivoId, {
           isComplete: true,
           status: "Colheita",
-          traceabilityHash: hashFromFinalize(res, cultivoId, (cultivo.events || []).length),
+          traceabilityHash: hashFromCertificate(cert, cultivoId),
         })
         toast.success("Cultivo finalizado.")
       } catch (err) {

@@ -12,7 +12,7 @@ import Link from "next/link"
 import type { CropMarketData } from "@/src/types"
 import { toast } from "sonner"
 import { analyticsApi, lotesApi, getErrorMessage } from "@/src/api"
-import { formatCurrency } from "@/src/lib/format"
+import { formatCurrency, formatMonth } from "@/src/lib/format"
 import { mapApiLote, type UILote } from "@/src/lib/lotes"
 import {
   BarChart,
@@ -29,7 +29,7 @@ import {
   Area,
 } from "recharts"
 
-const STATIC_CROPS: CropMarketData[] = [
+const REFERENCE_PRICES: CropMarketData[] = [
   {
     id: "1",
     name: "Milho",
@@ -207,34 +207,11 @@ function ExpandableChartCard({
 }
 
 export default function AnalyticsPage() {
-  const [cropMarketData, setCropMarketData] = useState<CropMarketData[]>(STATIC_CROPS)
-
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const res = await analyticsApi.getCotacoes()
-        if (Array.isArray(res) && res.length > 0) {
-          setCropMarketData((prev) =>
-            prev.map((crop) => {
-              const apiMatch = res.find(
-                (r: any) =>
-                  (r.cultura || r.name || "").toLowerCase() === crop.name.toLowerCase()
-              )
-              if (apiMatch) {
-                return { ...crop, pricePerSack: apiMatch.precoSaca ?? crop.pricePerSack }
-              }
-              return crop
-            })
-          )
-        }
-      } catch {
-        // keep reference prices when quotes are unavailable
-      }
-    })()
-  }, [])
+  // Reference price ranges; live quotes (CEPEA/B3) are planned for a later phase.
+  const cropMarketData = REFERENCE_PRICES
 
   const [lots, setLots] = useState<UILote[]>([])
-  const [profitTrends, setProfitTrends] = useState<{ month: string; lucro: number; receita?: number; custo?: number }[]>([])
+  const [profitTrends, setProfitTrends] = useState<{ month: string; lucro: number; receita: number; custo: number }[]>([])
 
   useEffect(() => {
     ;(async () => {
@@ -243,20 +220,12 @@ export default function AnalyticsPage() {
         analyticsApi.getTendenciaLucro(),
       ])
       if (lotesRes.status === "fulfilled") {
-        setLots((lotesRes.value || []).map(mapApiLote))
+        setLots(lotesRes.value.map(mapApiLote))
       } else {
         toast.error(getErrorMessage(lotesRes.reason, "Nao foi possivel carregar os lotes."))
       }
-      if (tendenciaRes.status === "fulfilled" && Array.isArray(tendenciaRes.value)) {
-        setProfitTrends(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          tendenciaRes.value.map((t: any) => ({
-            month: t.mes || t.month || t.label || "",
-            lucro: t.lucro ?? 0,
-            receita: t.receita,
-            custo: t.custo,
-          })),
-        )
+      if (tendenciaRes.status === "fulfilled") {
+        setProfitTrends(tendenciaRes.value.map((t) => ({ ...t, month: formatMonth(t.mes) })))
       }
     })()
   }, [])

@@ -2,7 +2,7 @@ import axios, { AxiosError } from "axios";
 import { clearSession, getToken } from "@/src/lib/session";
 
 export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "https://vitsapi.onrender.com",
+  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080",
   headers: {
     "Content-Type": "application/json",
   },

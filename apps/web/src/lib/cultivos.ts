@@ -1,50 +1,47 @@
-import { lotesApi } from "@/src/api"
-import { mapApiEvento, mapApiLote, type UILote } from "@/src/lib/lotes"
-import type { Cultivo, CropStatus, TraceabilityHash } from "@/src/types"
+import { lotesApi, type Certificado, type Lote } from "@/src/api"
+import { formatDate } from "@/src/lib/format"
+import { mapApiEvento } from "@/src/lib/lotes"
+import type { Cultivo, TraceabilityHash } from "@/src/types"
 
-const CROP_STATUSES: CropStatus[] = ["Plantio", "Em Crescimento", "Pronto", "Colheita"]
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapHash(raw: any, loteId: string, eventCount: number): TraceabilityHash | undefined {
-  const hash = raw?.hashFinal ?? raw?.hashEventos ?? raw?.traceabilityHash?.hash ?? raw?.hash
-  if (!hash) return undefined
-  const generatedAt = raw?.finalizadoEm ?? raw?.traceabilityHash?.generatedAt
+export function loteToCultivo(lote: Lote): Cultivo {
+  const isComplete = lote.status === "finalizado"
   return {
-    lotId: loteId,
-    hash,
-    generatedAt: generatedAt ? new Date(generatedAt) : new Date(),
-    eventCount,
-  }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function loteToCultivo(raw: any, lote: UILote = mapApiLote(raw)): Cultivo {
-  const isComplete = lote.status === "Finalizado" || Boolean(raw.isComplete)
-  const status = CROP_STATUSES.includes(raw.estagio) ? (raw.estagio as CropStatus) : isComplete ? "Colheita" : "Em Crescimento"
-  return {
-    id: lote.id,
-    loteId: lote.id,
-    name: lote.crop,
-    lot: lote.name,
-    status,
-    plantingDate: raw.dataPlantio ?? raw.plantingDate ?? "",
-    harvestDate: raw.previsaoColheita ?? raw.harvestDate ?? "",
-    area: raw.areaHectares ?? raw.area ?? 0,
-    variety: raw.variedade ?? raw.variety ?? "",
-    expectedYield: lote.production,
+    id: String(lote.id),
+    loteId: String(lote.id),
+    name: lote.cultura,
+    lot: lote.nomeLote,
+    status: isComplete ? "Colheita" : lote.dataPlantio ? "Em Crescimento" : "Plantio",
+    plantingDate: lote.dataPlantio ? formatDate(`${lote.dataPlantio}T00:00:00`) : "",
+    harvestDate: lote.previsaoColheita ? formatDate(`${lote.previsaoColheita}T00:00:00`) : "",
+    area: lote.areaHectares,
+    variety: lote.variedade,
+    expectedYield: lote.producaoTotal,
     isComplete,
-    traceabilityHash: mapHash(raw, lote.id, 0),
+    traceabilityHash:
+      lote.hashFinal && lote.codigoVerificacao
+        ? {
+            lotId: String(lote.id),
+            hash: lote.hashFinal,
+            verificationCode: lote.codigoVerificacao,
+            generatedAt: new Date(lote.finalizadoEm ?? lote.atualizadoEm),
+            eventCount: 0,
+          }
+        : undefined,
     events: [],
   }
 }
 
 export async function fetchCultivoEvents(loteId: string) {
-  const events = await lotesApi.getEventos(Number(loteId))
-  return (events || []).map((e) => mapApiEvento(e, loteId))
+  const events = await lotesApi.getEventos(loteId)
+  return events.map((e) => mapApiEvento(e, loteId))
 }
 
-// The finalize endpoint returns the hash and related artifacts for the lote.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function hashFromFinalize(res: any, loteId: string, eventCount: number): TraceabilityHash | undefined {
-  return mapHash(res, loteId, eventCount)
+export function hashFromCertificate(cert: Certificado, loteId: string): TraceabilityHash {
+  return {
+    lotId: loteId,
+    hash: cert.hashFinal,
+    verificationCode: cert.codigoVerificacao,
+    generatedAt: new Date(cert.finalizadoEm),
+    eventCount: cert.totalEventos,
+  }
 }

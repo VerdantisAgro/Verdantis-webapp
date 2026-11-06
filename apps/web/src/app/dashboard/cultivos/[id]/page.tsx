@@ -16,8 +16,7 @@ import { Badge } from "@/src/components/ui/badge"
 import { Button } from "@/src/components/ui/button"
 import { Card, CardContent } from "@/src/components/ui/card"
 import { Calendar, Leaf } from "lucide-react"
-import { fetchCultivoEvents, hashFromFinalize, loteToCultivo } from "@/src/lib/cultivos"
-import { mapApiLote } from "@/src/lib/lotes"
+import { fetchCultivoEvents, hashFromCertificate, loteToCultivo } from "@/src/lib/cultivos"
 import type { Cultivo, TraceabilityEvent } from "@/src/types"
 
 export default function TraceabilityDetailsPage() {
@@ -37,8 +36,7 @@ export default function TraceabilityDetailsPage() {
     if (!id) return
     ;(async () => {
       try {
-        const raw = await lotesApi.getLoteById(Number(id))
-        setCultivo(loteToCultivo(raw))
+        setCultivo(loteToCultivo(await lotesApi.getLoteById(id)))
         await loadEvents()
       } catch (err) {
         toast.error(getErrorMessage(err, "Nao foi possivel carregar o cultivo."))
@@ -81,8 +79,7 @@ export default function TraceabilityDetailsPage() {
 
   const handleAddEvent = async (event: TraceabilityEvent) => {
     try {
-      await lotesApi.postEvento(Number(id), {
-        loteId: Number(id),
+      await lotesApi.postEvento(id, {
         tipoEvento: event.type,
         descricao: event.description,
       })
@@ -97,19 +94,12 @@ export default function TraceabilityDetailsPage() {
     if (events.length === 0) return
     setFinalizing(true)
     try {
-      const lote = mapApiLote(await lotesApi.getLoteById(Number(id)))
-      const res = await lotesApi.finalizarCultivo(Number(id), {
-        nomeLote: lote.name,
-        cultura: lote.crop,
-        producaoTotal: lote.production,
-        custoTotal: lote.cost,
-        precoVenda: lote.salePrice,
-      })
+      const cert = await lotesApi.finalizar(id)
       setCultivo({
         ...cultivo,
         isComplete: true,
         status: "Colheita",
-        traceabilityHash: hashFromFinalize(res, id, events.length),
+        traceabilityHash: hashFromCertificate(cert, id),
       })
       toast.success("Cultivo finalizado.")
     } catch (err) {

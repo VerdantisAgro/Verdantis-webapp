@@ -1,3 +1,4 @@
+import type { Evento, Lote } from "@/src/api"
 import type { TraceabilityEvent, TraceabilityEventType } from "@/src/types"
 
 export const CROPS = ["Milho", "Soja", "Cafe", "Trigo", "Arroz", "Feijao", "Algodao", "Alface", "Tomate"]
@@ -15,44 +16,30 @@ export type UILote = {
   status: string
 }
 
-const STATUS_NORMALIZE: Record<string, string> = {
+const STATUS_LABELS: Record<Lote["status"], string> = {
   ativo: "Ativo",
   finalizado: "Finalizado",
-  "em preparo": "Em Preparo",
-  em_preparo: "Em Preparo",
 }
 
 export const STATUS_CLASSES: Record<string, string> = {
   Ativo: "border-green-500/30 bg-green-500/10 text-green-700",
   Finalizado: "border-muted-foreground/30 bg-muted text-muted-foreground",
-  "Em Preparo": "border-amber-500/30 bg-amber-500/10 text-amber-700",
 }
 
 export const DEFAULT_STATUS_CLASS = "border-muted-foreground/30 bg-muted text-muted-foreground"
 
-export function normalizeStatus(status: string): string {
-  return STATUS_NORMALIZE[status.toLowerCase()] ?? status
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function mapApiLote(item: any): UILote {
-  const production = item.producao ?? item.producaoTotal ?? 0
-  const cost = item.custo ?? item.custoTotal ?? 0
-  const salePrice = item.precoVenda ?? 0
-  const revenue = item.receita ?? production * salePrice
-  const profit = item.lucroEstimado ?? item.lucro ?? revenue - cost
-  const margin = revenue > 0 ? (profit / revenue) * 100 : 0
+export function mapApiLote(lote: Lote): UILote {
   return {
-    id: String(item.id),
-    name: item.nomeLote || item.lote || `Lote ${item.id}`,
-    crop: item.cultura || "",
-    production,
-    cost,
-    salePrice,
-    revenue,
-    profit,
-    margin,
-    status: item.status ? normalizeStatus(item.status) : "",
+    id: String(lote.id),
+    name: lote.nomeLote,
+    crop: lote.cultura,
+    production: lote.producaoTotal,
+    cost: lote.custoTotal,
+    salePrice: lote.precoVenda,
+    revenue: lote.receita,
+    profit: lote.lucro,
+    margin: lote.receita > 0 ? (lote.lucro / lote.receita) * 100 : 0,
+    status: STATUS_LABELS[lote.status] ?? lote.status,
   }
 }
 
@@ -68,15 +55,16 @@ const EVENT_TYPES: TraceabilityEventType[] = [
   "OTHER",
 ]
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function mapApiEvento(item: any, loteId: string): TraceabilityEvent {
-  const rawType = String(item.tipoEvento ?? item.type ?? "OTHER").toUpperCase()
-  const type = (EVENT_TYPES as string[]).includes(rawType) ? (rawType as TraceabilityEventType) : "OTHER"
+export function mapApiEvento(evento: Evento, loteId: string): TraceabilityEvent {
+  const type = (EVENT_TYPES as string[]).includes(evento.tipoEvento)
+    ? (evento.tipoEvento as TraceabilityEventType)
+    : "OTHER"
   return {
-    id: String(item.id ?? crypto.randomUUID()),
+    id: String(evento.id),
     lotId: loteId,
     type,
-    description: item.descricao ?? item.description ?? "",
-    timestamp: new Date(item.dataEvento ?? item.criadoEm ?? item.timestamp ?? Date.now()),
+    description: evento.descricao,
+    timestamp: new Date(evento.ocorridoEm),
+    hash: evento.hash,
   }
 }
