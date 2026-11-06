@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from "@/src/components/ui/avatar"
 import { Badge } from "@/src/components/ui/badge"
 import { User, Mail, Phone, MapPin, Calendar, Edit, Grid3x3, Sprout } from "lucide-react"
 import { usersApi } from "@/src/api"
+import { getSessionUser } from "@/src/lib/session"
 
 export default function PerfilPage() {
   const [isEditing, setIsEditing] = useState(false)
@@ -23,15 +24,13 @@ export default function PerfilPage() {
     ;(async () => {
       setLoading(true)
       try {
-        const id = Number(localStorage.getItem("userId") || "0")
+        const session = getSessionUser()
+        const id = Number(session.id ?? 0)
         if (id) {
           const user = await usersApi.getUserById(id)
           setProfile({ id: user.id, userName: user.userName, email: user.email, phone: "", location: "", bio: "", memberSince: "" })
         } else {
-          // Fallback to stored auth info
-          const name = localStorage.getItem("userName") || ""
-          const email = localStorage.getItem("userEmail") || ""
-          setProfile({ userName: name, email })
+          setProfile({ userName: session.name ?? "", email: session.email ?? "" })
         }
       } catch (err) {
         console.error("Failed to load profile", err)

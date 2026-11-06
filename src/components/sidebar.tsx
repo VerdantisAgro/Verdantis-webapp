@@ -5,6 +5,7 @@ import { Home, Grid3x3, Sprout, BarChart3, User, LogOut, Leaf, Calculator } from
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/src/lib/utils"
+import { clearSession } from "@/src/lib/session"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -20,7 +21,8 @@ export function Sidebar() {
   const router = useRouter()
 
   const handleLogout = () => {
-    router.push("/")
+    clearSession()
+    router.replace("/")
   }
 
   return (

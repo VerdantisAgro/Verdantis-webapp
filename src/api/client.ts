@@ -1,19 +1,40 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
+import { clearSession, getToken } from "@/src/lib/session";
 
 export const apiClient = axios.create({
-  baseURL: "https://vitsapi.onrender.com",
+  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "https://vitsapi.onrender.com",
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true,
 });
 
 apiClient.interceptors.request.use((config) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    const isAuthRoute = error.config?.url?.includes("/auth/");
+    if (error.response?.status === 401 && !isAuthRoute && typeof window !== "undefined") {
+      clearSession();
+      window.location.href = "/";
+    }
+    return Promise.reject(error);
+  },
+);
+
+export function getErrorMessage(error: unknown, fallback = "Algo deu errado. Tente novamente."): string {
+  if (axios.isAxiosError(error)) {
+    if (!error.response) return "Nao foi possivel conectar ao servidor.";
+    const data = error.response.data as { message?: string; error?: string } | undefined;
+    return data?.message ?? data?.error ?? fallback;
+  }
+  return fallback;
+}
 
 export default apiClient;

@@ -35,6 +35,7 @@ import { useEffect, useState } from "react"
 import { lotesApi, analyticsApi } from "@/src/api"
 import { cn } from "@/src/lib/utils"
 import { formatCurrency } from "@/src/lib/format"
+import { getSessionUser } from "@/src/lib/session"
 import { mapApiLote, STATUS_CLASSES, type UILote } from "@/src/lib/lotes"
 
 const tooltipStyle = {
@@ -51,7 +52,7 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("Produtor")
 
   useEffect(() => {
-    const name = localStorage.getItem("userName")
+    const name = getSessionUser().name
     if (name) setUserName(name)
   }, [])
 

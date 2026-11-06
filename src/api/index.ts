@@ -5,4 +5,4 @@ export * as simulacoesApi from "./simulacoes";
 export * as dashboardApi from "./dashboard";
 export * as authApi from "./auth";
 export * as analyticsApi from "./analytics";
-export { apiClient } from "./client";
+export { apiClient, getErrorMessage } from "./client";

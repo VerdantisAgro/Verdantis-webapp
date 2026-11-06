@@ -18,7 +18,8 @@ import {
   Trash2,
 } from "lucide-react"
 import { useEffect, useState } from "react"
-import { lotesApi } from "@/src/api"
+import { toast } from "sonner"
+import { lotesApi, getErrorMessage } from "@/src/api"
 import { cn } from "@/src/lib/utils"
 import { formatCurrency } from "@/src/lib/format"
 import { mapApiLote, STATUS_CLASSES, type UILote } from "@/src/lib/lotes"
@@ -56,7 +57,7 @@ export default function LoteDetailPage() {
       await lotesApi.deleteLote(Number(id))
       router.push("/dashboard/lotes")
     } catch (err) {
-      console.error("Failed to delete lote", err)
+      toast.error(getErrorMessage(err, "Nao foi possivel excluir o lote."))
       setDeleting(false)
       setConfirmDelete(false)
     }

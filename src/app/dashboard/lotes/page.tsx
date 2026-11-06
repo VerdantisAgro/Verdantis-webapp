@@ -8,7 +8,8 @@ import { Badge } from "@/src/components/ui/badge"
 import { Plus, Eye, Pencil, Trash2, Leaf } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { lotesApi } from "@/src/api"
+import { toast } from "sonner"
+import { lotesApi, getErrorMessage } from "@/src/api"
 import { cn } from "@/src/lib/utils"
 import { formatCurrency } from "@/src/lib/format"
 import { mapApiLote, STATUS_CLASSES, type UILote } from "@/src/lib/lotes"
@@ -42,7 +43,7 @@ export default function LotesPage() {
         const res = await lotesApi.getLotes()
         setLots((res || []).map(mapApiLote))
       } catch (err) {
-        console.error("Failed to load lotes", err)
+        toast.error(getErrorMessage(err, "Nao foi possivel carregar os lotes."))
       } finally {
         setLoading(false)
       }
@@ -55,7 +56,7 @@ export default function LotesPage() {
       await lotesApi.deleteLote(Number(id))
       setLots((prev) => prev.filter((l) => l.id !== id))
     } catch (err) {
-      console.error("Failed to delete lote", err)
+      toast.error(getErrorMessage(err, "Nao foi possivel excluir o lote."))
     } finally {
       setDeletingId(null)
       setConfirmId(null)

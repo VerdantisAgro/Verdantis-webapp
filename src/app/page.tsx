@@ -9,27 +9,27 @@ import { Label } from "@/src/components/ui/label"
 import { Leaf, ArrowRight, TrendingUp, BarChart3, Shield, Grid3x3, Sprout, LineChart } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { authApi } from "@/src/api"
+import { toast } from "sonner"
+import { authApi, getErrorMessage } from "@/src/api"
+import { saveSession } from "@/src/lib/session"
 
 export default function HomePage() {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [submitting, setSubmitting] = useState(false)
 
   const handleLogin = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
+    setSubmitting(true)
     ;(async () => {
       try {
         const res = await authApi.login({ email, senha: password })
-        if (res?.token) {
-          localStorage.setItem("token", res.token)
-          if (res.id) localStorage.setItem("userId", String(res.id))
-          if (res.name) localStorage.setItem("userName", res.name)
-          if (res.email) localStorage.setItem("userEmail", res.email)
-          router.push("/dashboard")
-        }
+        saveSession(res.token, { id: res.id, name: res.name, email: res.email })
+        router.push("/dashboard")
       } catch (err) {
-        console.error("Login error", err)
+        toast.error(getErrorMessage(err, "E-mail ou senha invalidos."))
+        setSubmitting(false)
       }
     })()
   }
@@ -142,8 +142,8 @@ export default function HomePage() {
                     </a>
                   </div>
 
-                  <Button type="submit" size="lg" className="w-full">
-                    Entrar no painel
+                  <Button type="submit" size="lg" className="w-full" disabled={submitting}>
+                    {submitting ? "Entrando..." : "Entrar no painel"}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </form>

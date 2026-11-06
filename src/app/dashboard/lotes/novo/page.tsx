@@ -2,7 +2,8 @@
 
 import type React from "react"
 import { useState, useMemo } from "react"
-import { lotesApi } from "@/src/api"
+import { toast } from "sonner"
+import { lotesApi, getErrorMessage } from "@/src/api"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Topbar } from "@/src/components/topbar"
@@ -28,6 +29,7 @@ export default function NovoLotePage() {
     cost: 0,
     salePrice: 0,
   })
+  const [saving, setSaving] = useState(false)
 
   const profitPreview = useMemo(() => {
     const revenue = formData.production * formData.salePrice
@@ -38,13 +40,20 @@ export default function NovoLotePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!formData.cropId) {
+      toast.error("Selecione a cultura do lote.")
+      return
+    }
+    setSaving(true)
     ;(async () => {
       try {
         await lotesApi.createLote({ nomeLote: formData.name, cultura: formData.cropId, producaoTotal: formData.production, custoTotal: formData.cost, precoVenda: formData.salePrice })
+        toast.success("Lote criado.")
+        router.push("/dashboard/lotes")
       } catch (err) {
-        console.error("Failed to create lote", err)
+        toast.error(getErrorMessage(err, "Nao foi possivel criar o lote."))
+        setSaving(false)
       }
-      router.push("/dashboard/lotes")
     })()
   }
 
@@ -149,9 +158,9 @@ export default function NovoLotePage() {
                   </div>
 
                   <div className="flex gap-4 pt-4">
-                    <Button type="submit" className="flex-1">
+                    <Button type="submit" className="flex-1" disabled={saving}>
                       <Save className="h-4 w-4 mr-2" />
-                      Salvar Lote
+                      {saving ? "Salvando..." : "Salvar Lote"}
                     </Button>
                     <Link href="/dashboard/lotes" className="flex-1">
                       <Button type="button" variant="outline" className="w-full">

@@ -7,7 +7,9 @@ import { Input } from "@/src/components/ui/input"
 import { Label } from "@/src/components/ui/label"
 import { Leaf, ArrowRight, CheckCircle2, Shield } from "lucide-react"
 import { useState } from "react"
-import { authApi } from "@/src/api"
+import { toast } from "sonner"
+import { authApi, getErrorMessage } from "@/src/api"
+import { saveSession } from "@/src/lib/session"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { BackgroundOverlayLayout } from "@/src/components/background-overlay-layout"
@@ -25,18 +27,16 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
-    if (formData.password !== formData.confirmPassword) return
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("As senhas nao conferem.")
+      return
+    }
     try {
       const res = await authApi.register({ nomeCompleto: formData.name, email: formData.email, cpf: formData.cpf, senha: formData.password })
-      if (res?.token) {
-        localStorage.setItem("token", res.token)
-        if (res.id) localStorage.setItem("userId", String(res.id))
-        if (res.name) localStorage.setItem("userName", res.name)
-        if (res.email) localStorage.setItem("userEmail", res.email)
-        router.push("/dashboard")
-      }
+      saveSession(res.token, { id: res.id, name: res.name, email: res.email })
+      router.push("/dashboard")
     } catch (err) {
-      console.error("Register error", err)
+      toast.error(getErrorMessage(err, "Nao foi possivel criar a conta."))
     }
   }
 

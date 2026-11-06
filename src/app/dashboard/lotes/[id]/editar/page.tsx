@@ -3,7 +3,8 @@
 import type React from "react"
 import { useState, useMemo, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { lotesApi } from "@/src/api"
+import { toast } from "sonner"
+import { lotesApi, getErrorMessage } from "@/src/api"
 import Link from "next/link"
 import { Topbar } from "@/src/components/topbar"
 import { PageContainer } from "@/src/components/page-container"
@@ -50,7 +51,7 @@ export default function EditarLotePage() {
           salePrice: api.precoVenda ?? 0,
         })
       } catch (err) {
-        console.error("Failed to load lote", err)
+        toast.error(getErrorMessage(err, "Nao foi possivel carregar o lote."))
       } finally {
         setLoading(false)
       }
@@ -78,7 +79,7 @@ export default function EditarLotePage() {
         })
         router.push(`/dashboard/lotes/${id}`)
       } catch (err) {
-        console.error("Failed to update lote", err)
+        toast.error(getErrorMessage(err, "Nao foi possivel salvar o lote."))
         setSaving(false)
       }
     })()
