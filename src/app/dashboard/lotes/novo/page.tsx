@@ -13,10 +13,11 @@ import { Input } from "@/src/components/ui/input"
 import { Label } from "@/src/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select"
 import { ArrowLeft, Save, DollarSign, TrendingUp, Percent, Package } from "lucide-react"
+import { formatCurrency } from "@/src/lib/format"
+import { CROPS } from "@/src/lib/lotes"
 import { StatCard } from "@/src/components/stat-card"
 import type { LoteFormData } from "@/src/types"
 
-const crops = ["Milho", "Soja", "Cafe", "Trigo", "Alface", "Tomate", "Feijao", "Arroz"]
 
 export default function NovoLotePage() {
   const router = useRouter()
@@ -50,9 +51,6 @@ export default function NovoLotePage() {
   const updateField = (field: keyof LoteFormData, value: string | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
-
-  const formatCurrency = (value: number) =>
-    value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
   return (
     <>
@@ -96,7 +94,7 @@ export default function NovoLotePage() {
                             <SelectValue placeholder="Selecione a cultura" />
                           </SelectTrigger>
                           <SelectContent>
-                            {crops.map((c) => (
+                            {CROPS.map((c) => (
                               <SelectItem key={c} value={c}>{c}</SelectItem>
                             ))}
                           </SelectContent>

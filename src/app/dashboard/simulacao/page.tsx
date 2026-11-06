@@ -22,8 +22,9 @@ import {
 import type { SimulationLot } from "@/src/types"
 import { simulacoesApi, lotesApi } from "@/src/api"
 import { cn } from "@/src/lib/utils"
+import { formatCurrency } from "@/src/lib/format"
+import { CROPS } from "@/src/lib/lotes"
 
-const crops = ["Milho", "Soja", "Cafe", "Trigo", "Arroz", "Feijao", "Algodao", "Alface"]
 
 type ExistingLot = {
   id: string
@@ -132,8 +133,6 @@ function calculateResult(
   }
 }
 
-const formatCurrency = (value: number) =>
-  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
 // ─── Scenario Card ────────────────────────────────────────────────────────────
 
@@ -258,7 +257,7 @@ function ScenarioCard({
                     <SelectValue placeholder="Cultura" />
                   </SelectTrigger>
                   <SelectContent>
-                    {crops.map((crop) => (
+                    {CROPS.map((crop) => (
                       <SelectItem key={crop} value={crop}>
                         {crop}
                       </SelectItem>

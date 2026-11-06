@@ -13,13 +13,12 @@ import { Input } from "@/src/components/ui/input"
 import { Label } from "@/src/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select"
 import { ArrowLeft, Save, DollarSign, TrendingUp, Percent, Package } from "lucide-react"
+import { formatCurrency } from "@/src/lib/format"
+import { CROPS } from "@/src/lib/lotes"
 import { StatCard } from "@/src/components/stat-card"
 import type { LoteFormData } from "@/src/types"
 
-const crops = ["Milho", "Soja", "Cafe", "Trigo", "Alface", "Tomate", "Feijao", "Arroz"]
 
-const formatCurrency = (value: number) =>
-  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
 export default function EditarLotePage() {
   const params = useParams()
@@ -146,7 +145,7 @@ export default function EditarLotePage() {
                             <SelectValue placeholder="Selecione a cultura" />
                           </SelectTrigger>
                           <SelectContent>
-                            {crops.map((c) => (
+                            {CROPS.map((c) => (
                               <SelectItem key={c} value={c}>
                                 {c}
                               </SelectItem>

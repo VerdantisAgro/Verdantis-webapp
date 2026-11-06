@@ -10,60 +10,9 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { lotesApi } from "@/src/api"
 import { cn } from "@/src/lib/utils"
+import { formatCurrency } from "@/src/lib/format"
+import { mapApiLote, STATUS_CLASSES, type UILote } from "@/src/lib/lotes"
 
-type UILote = {
-  id: string
-  name: string
-  crop: string
-  production: number
-  cost: number
-  salePrice: number
-  revenue: number
-  profit: number
-  margin: number
-  status: string
-}
-
-const STATUS_MAP: Record<string, string> = {
-  ativo: "Ativo",
-  finalizado: "Finalizado",
-  "em preparo": "Em Preparo",
-  em_preparo: "Em Preparo",
-}
-
-function normalizeStatus(status: string): string {
-  return STATUS_MAP[status.toLowerCase()] ?? status
-}
-
-function mapApiLote(item: any): UILote {
-  const production = item.producao ?? item.producaoTotal ?? 0
-  const cost = item.custo ?? item.custoTotal ?? 0
-  const salePrice = item.precoVenda ?? 0
-  const revenue = item.receita ?? production * salePrice
-  const profit = item.lucroEstimado ?? item.lucro ?? revenue - cost
-  const margin = revenue > 0 ? (profit / revenue) * 100 : 0
-  return {
-    id: String(item.id),
-    name: item.nomeLote || item.lote || `Lote ${item.id}`,
-    crop: item.cultura || "",
-    production,
-    cost,
-    salePrice,
-    revenue,
-    profit,
-    margin,
-    status: item.status ? normalizeStatus(item.status) : "",
-  }
-}
-
-const formatCurrency = (value: number) =>
-  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-
-const STATUS_CLASSES: Record<string, string> = {
-  Ativo: "border-green-500/30 bg-green-500/10 text-green-700",
-  Finalizado: "border-muted-foreground/30 bg-muted text-muted-foreground",
-  "Em Preparo": "border-amber-500/30 bg-amber-500/10 text-amber-700",
-}
 
 function SkeletonRows() {
   return (
