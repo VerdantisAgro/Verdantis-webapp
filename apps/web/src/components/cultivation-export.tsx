@@ -1,49 +1,43 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Button } from "@/src/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card"
-import { Badge } from "@/src/components/ui/badge"
-import { FileText, QrCode, CheckCircle, Loader2 } from "lucide-react"
-import type { Cultivo, TraceabilityEvent } from "@/src/types"
+import { FileText, QrCode, CheckCircle, Loader2, ExternalLink } from "lucide-react"
+import { publicApi } from "@/src/api"
+import type { Cultivo } from "@/src/types"
 
 interface CultivationExportProps {
   cultivo: Cultivo
   farmerName: string
-  onFinish: () => void
+  onFinish: () => Promise<void>
 }
 
-// Simple QR Code generation using a free API
-function generateQRCodeUrl(data: string): string {
-  const encodedData = encodeURIComponent(data)
-  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedData}`
+function verificationPath(code: string) {
+  return `/verificar/${code}`
 }
 
-// Generate document content
 function generateDocumentContent(cultivo: Cultivo, farmerName: string): string {
   const events = cultivo.events || []
-  const eventList = events.map((e, i) => {
-    const date = new Date(e.timestamp)
-    return `${i + 1}. [${date.toLocaleDateString("pt-BR")}] ${e.type}: ${e.description}`
-  }).join("\n")
+  const eventList = events
+    .map((e, i) => `${i + 1}. [${new Date(e.timestamp).toLocaleDateString("pt-BR")}] ${e.type}: ${e.description}`)
+    .join("\n")
+  const hash = cultivo.traceabilityHash
+  const verificationUrl = hash ? `${window.location.origin}${verificationPath(hash.verificationCode)}` : ""
 
   return `
 DOCUMENTO DE RASTREABILIDADE - CULTIVO
 ======================================
 
-Informacoes do Cultivo
-----------------------
+Cultivo
+-------
 Cultura: ${cultivo.name}
-Variedade: ${cultivo.variety}
+Variedade: ${cultivo.variety || "-"}
 Lote: ${cultivo.lot}
 Area: ${cultivo.area} hectares
-Produtividade Esperada: ${cultivo.expectedYield} sc/ha
-
-Datas
------
-Data de Plantio: ${cultivo.plantingDate}
-Data Prevista de Colheita: ${cultivo.harvestDate}
-${cultivo.actualYield ? `Produtividade Real: ${cultivo.actualYield} sc/ha` : ""}
+Data de Plantio: ${cultivo.plantingDate || "-"}
+Previsao de Colheita: ${cultivo.harvestDate || "-"}
 
 Produtor
 --------
@@ -53,13 +47,15 @@ Historico de Eventos (${events.length} registros)
 -------------------------------------------------
 ${eventList || "Nenhum evento registrado"}
 
-Hash de Rastreabilidade
------------------------
-${cultivo.traceabilityHash?.hash || "Nao gerado"}
-Gerado em: ${cultivo.traceabilityHash ? new Date(cultivo.traceabilityHash.generatedAt).toLocaleDateString("pt-BR") : "N/A"}
+Certificado
+-----------
+Codigo: ${hash?.verificationCode ?? "Nao gerado"}
+Hash final: ${hash?.hash ?? "Nao gerado"}
+Finalizado em: ${hash ? new Date(hash.generatedAt).toLocaleDateString("pt-BR") : "-"}
+Verifique em: ${verificationUrl || "-"}
 
 ======================================
-Documento gerado automaticamente pelo Verdantis
+Documento gerado pelo Verdantis
   `.trim()
 }
 
@@ -77,33 +73,16 @@ function downloadAsText(content: string, filename: string) {
 
 export function CultivationExport({ cultivo, farmerName, onFinish }: CultivationExportProps) {
   const [isGenerating, setIsGenerating] = useState(false)
-  const [isGenerated, setIsGenerated] = useState(false)
-  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
-
   const events = cultivo.events || []
-  const hasEvents = events.length > 0
+  const hash = cultivo.traceabilityHash
 
-  const handleGenerateDocument = async () => {
+  const handleFinish = async () => {
     setIsGenerating(true)
-    
-    // Generate QR code data from events chain
-    const eventChain = events.map(e => `${e.type}:${e.description}:${new Date(e.timestamp).getTime()}`).join("|")
-    const qrData = JSON.stringify({
-      cultivation: cultivo.name,
-      lot: cultivo.lot,
-      variety: cultivo.variety,
-      plantingDate: cultivo.plantingDate,
-      harvestDate: cultivo.harvestDate,
-      eventCount: events.length,
-      hash: cultivo.traceabilityHash?.hash || "pending",
-      eventChain: eventChain.slice(0, 500) // Limit for QR code
-    })
-    
-    setQrCodeUrl(generateQRCodeUrl(qrData))
-    
-    setIsGenerating(false)
-    setIsGenerated(true)
-    onFinish()
+    try {
+      await onFinish()
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   const handleDownload = () => {
@@ -112,19 +91,7 @@ export function CultivationExport({ cultivo, farmerName, onFinish }: Cultivation
     downloadAsText(content, filename)
   }
 
-  if (!hasEvents) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="p-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Registre pelo menos um evento antes de finalizar o cultivo.
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (isGenerated) {
+  if (cultivo.isComplete && hash) {
     return (
       <Card className="border-green-500/30 bg-green-500/5">
         <CardHeader>
@@ -132,31 +99,44 @@ export function CultivationExport({ cultivo, farmerName, onFinish }: Cultivation
             <CheckCircle className="h-5 w-5 text-green-600" />
             <CardTitle className="text-base">Cultivo Finalizado</CardTitle>
           </div>
-          <CardDescription>
-            Documento de rastreabilidade gerado com sucesso
-          </CardDescription>
+          <CardDescription>Certificado {hash.verificationCode}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {qrCodeUrl && (
-            <div className="flex justify-center">
-              <div className="p-4 bg-white rounded-lg">
-                <img 
-                  src={qrCodeUrl} 
-                  alt="QR Code de Rastreabilidade"
-                  className="w-40 h-40"
-                />
-              </div>
+          <div className="flex justify-center">
+            <div className="p-4 bg-white rounded-lg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={publicApi.qrCodeUrl(hash.verificationCode)}
+                alt="QR Code de verificacao do lote"
+                className="w-40 h-40"
+              />
             </div>
-          )}
-          
-          <div className="text-center text-sm text-muted-foreground">
-            <p>QR Code contendo o historico de eventos</p>
           </div>
+          <p className="text-center text-sm text-muted-foreground">
+            O QR Code abre a pagina publica onde o comprador confere a origem do lote.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link href={verificationPath(hash.verificationCode)} target="_blank" className="flex-1">
+              <Button variant="outline" className="w-full">
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Abrir verificacao
+              </Button>
+            </Link>
+            <Button variant="outline" className="flex-1" onClick={handleDownload}>
+              <FileText className="h-4 w-4 mr-2" />
+              Baixar relatorio (.txt)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
-          <Button variant="outline" className="w-full" onClick={handleDownload}>
-            <FileText className="h-4 w-4 mr-2" />
-            Baixar relatorio (.txt)
-          </Button>
+  if (events.length === 0) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center">
+          <p className="text-sm text-muted-foreground">Registre pelo menos um evento antes de finalizar o cultivo.</p>
         </CardContent>
       </Card>
     )
@@ -169,9 +149,7 @@ export function CultivationExport({ cultivo, farmerName, onFinish }: Cultivation
           <QrCode className="h-5 w-5 text-primary" />
           Finalizar Cultivo
         </CardTitle>
-        <CardDescription>
-          Gere o documento de rastreabilidade com QR Code
-        </CardDescription>
+        <CardDescription>Gere o certificado de origem com QR Code</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2 text-sm">
@@ -181,11 +159,7 @@ export function CultivationExport({ cultivo, farmerName, onFinish }: Cultivation
           </div>
           <div className="flex justify-between py-2 border-b border-border">
             <span className="text-muted-foreground">Data de plantio</span>
-            <span className="font-medium text-foreground">{cultivo.plantingDate}</span>
-          </div>
-          <div className="flex justify-between py-2 border-b border-border">
-            <span className="text-muted-foreground">Previsao de colheita</span>
-            <span className="font-medium text-foreground">{cultivo.harvestDate}</span>
+            <span className="font-medium text-foreground">{cultivo.plantingDate || "-"}</span>
           </div>
           <div className="flex justify-between py-2">
             <span className="text-muted-foreground">Produtor</span>
@@ -195,20 +169,15 @@ export function CultivationExport({ cultivo, farmerName, onFinish }: Cultivation
 
         <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
           <p className="text-xs text-amber-700">
-            Ao finalizar, sera gerado um documento com todo o historico de eventos, 
-            datas e um QR Code para verificacao. Esta acao nao pode ser desfeita.
+            Ao finalizar, a cadeia de eventos e selada e assinada. Nenhum evento podera ser adicionado depois.
           </p>
         </div>
 
-        <Button 
-          className="w-full" 
-          onClick={handleGenerateDocument}
-          disabled={isGenerating}
-        >
+        <Button className="w-full" onClick={handleFinish} disabled={isGenerating}>
           {isGenerating ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Gerando documento...
+              Finalizando...
             </>
           ) : (
             <>
