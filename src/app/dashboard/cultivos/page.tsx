@@ -13,11 +13,13 @@ import { TraceabilityTimeline } from "@/src/components/traceability-timeline"
 import { TraceabilityEventForm } from "@/src/components/traceability-event-form"
 import { TraceabilityHashPanel } from "@/src/components/traceability-hash-panel"
 import { CultivationExport } from "@/src/components/cultivation-export"
-import { lotesApi } from "@/src/api"
-import { EventsDropdown, EventsHistoryModal } from "@/src/components/event-history-modal"
-import type { Cultivo, CropStatus, TraceabilityEvent, TraceabilityHash } from "@/src/types"
-
-const initialCultivos: Cultivo[] = []
+import { toast } from "sonner"
+import { lotesApi, getErrorMessage } from "@/src/api"
+import { EventsDropdown } from "@/src/components/event-history-modal"
+import { fetchCultivoEvents, hashFromFinalize, loteToCultivo } from "@/src/lib/cultivos"
+import { mapApiLote } from "@/src/lib/lotes"
+import { getSessionUser } from "@/src/lib/session"
+import type { Cultivo, CropStatus, TraceabilityEvent } from "@/src/types"
 
 function getStatusColor(status: CropStatus) {
   const map: Record<CropStatus, string> = {
@@ -29,27 +31,15 @@ function getStatusColor(status: CropStatus) {
   return map[status]
 }
 
-function generateHash(events: TraceabilityEvent[], lotId: string): string {
-  const data = events.map((e) => `${e.type}:${e.description}:${new Date(e.timestamp).getTime()}`).join("|")
-  let hash = 0
-  for (let i = 0; i < data.length; i++) {
-    const char = data.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  const hex = Math.abs(hash).toString(16).padStart(8, "0")
-  return `0x${hex}${lotId.padStart(4, "0")}${"a3f7b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0".slice(0, 52)}`
-}
-
 interface CropLotCardProps {
   cultivo: Cultivo
   onAddEvent: (cultivoId: string, event: TraceabilityEvent) => void
   onFinalize: (cultivoId: string) => void
+  farmerName: string
 }
 
-function CropLotCard({ cultivo, onAddEvent, onFinalize }: CropLotCardProps) {
+function CropLotCard({ cultivo, onAddEvent, onFinalize, farmerName }: CropLotCardProps) {
   const [expanded, setExpanded] = useState(false)
-  const [showFullHistory, setShowFullHistory] = useState(false)
   const events = cultivo.events || []
   const isComplete = cultivo.isComplete || false
 
@@ -159,7 +149,7 @@ function CropLotCard({ cultivo, onAddEvent, onFinalize }: CropLotCardProps) {
                 <h4 className="text-sm font-semibold text-foreground">Finalizar Cultivo</h4>
                 <CultivationExport 
                   cultivo={cultivo}
-                  farmerName="Joao Paulo"
+                  farmerName={farmerName}
                   onFinish={() => onFinalize(cultivo.id)}
                 />
               </div>
@@ -172,82 +162,84 @@ function CropLotCard({ cultivo, onAddEvent, onFinalize }: CropLotCardProps) {
 }
 
 export default function CultivosPage() {
-  const [cultivos, setCultivos] = useState<Cultivo[]>(initialCultivos)
+  const [cultivos, setCultivos] = useState<Cultivo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [farmerName, setFarmerName] = useState("")
+
+  useEffect(() => {
+    setFarmerName(getSessionUser().name ?? "")
+  }, [])
+
+  const updateCultivo = useCallback((id: string, patch: Partial<Cultivo>) => {
+    setCultivos((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+  }, [])
 
   useEffect(() => {
     ;(async () => {
       try {
         const res = await lotesApi.getLotes()
-        // map lote items to Cultivo-ish objects
-        const mapped: Cultivo[] = (res || []).map((l: any) => ({
-          id: String(l.id),
-          name: l.cultura || l.crop || "",
-          lot: l.nomeLote || l.lote || `Lote ${l.id}`,
-          loteId: String(l.id),
-          status: l.status || "Em Crescimento",
-          plantingDate: l.plantingDate || "",
-          harvestDate: l.harvestDate || "",
-          area: l.area || 0,
-          daysUntilHarvest: 0,
-          progress: 0,
-          irrigation: true,
-          weather: true,
-          variety: l.variety || "",
-          expectedYield: l.producaoEstimada || l.producao || 0,
-          isComplete: Boolean(l.isComplete),
-          traceabilityHash: l.traceabilityHash ? { lotId: String(l.id), hash: l.hash || l.traceabilityHash.hash, generatedAt: l.traceabilityHash.generatedAt ? new Date(l.traceabilityHash.generatedAt) : new Date(), eventCount: l.traceabilityHash.eventCount || 0 } : undefined,
-          events: [],
-        }))
+        const mapped = (res || []).map((l) => loteToCultivo(l))
         setCultivos(mapped)
 
-        // load events for each lote
-        await Promise.all(mapped.map(async (c) => {
-          try {
-            const ev = await lotesApi.getEventos(Number(c.loteId))
-            setCultivos((prev) => prev.map((p) => p.id === c.id ? { ...p, events: ev || [] } : p))
-          } catch (e) {
-            // ignore per-lote
-          }
-        }))
+        await Promise.all(
+          mapped.map(async (c) => {
+            try {
+              updateCultivo(c.id, { events: await fetchCultivoEvents(c.loteId) })
+            } catch {
+              // a lote without events should not block the others
+            }
+          }),
+        )
       } catch (err) {
-        console.error("Failed to load cultivos", err)
+        toast.error(getErrorMessage(err, "Nao foi possivel carregar os cultivos."))
+      } finally {
+        setLoading(false)
       }
     })()
-  }, [])
+  }, [updateCultivo])
 
-  const handleAddEvent = useCallback(async (cultivoId: string, event: TraceabilityEvent) => {
-    try {
-      await lotesApi.postEvento(Number(cultivoId), {
-        loteId: Number(cultivoId),
-        tipoEvento: event.type,
-        descricao: event.description,
-      })
-      // optimistic update
-      setCultivos((prev) => prev.map((c) => c.id === cultivoId ? { ...c, events: [...(c.events || []), event] } : c))
-    } catch (err) {
-      console.error("Failed to post event", err)
-    }
-  }, [])
-
-  const handleFinalize = useCallback(async (cultivoId: string) => {
-    const cultivo = cultivos.find((c) => c.id === cultivoId)
-    if (!cultivo) return
-    try {
-      const payload = {
-        nomeLote: cultivo.lot,
-        cultura: cultivo.name,
-        producaoTotal: cultivo.expectedYield || 0,
-        custoTotal: 0,
-        precoVenda: cultivo.expectedYield || 0,
+  const handleAddEvent = useCallback(
+    async (cultivoId: string, event: TraceabilityEvent) => {
+      try {
+        await lotesApi.postEvento(Number(cultivoId), {
+          loteId: Number(cultivoId),
+          tipoEvento: event.type,
+          descricao: event.description,
+        })
+        updateCultivo(cultivoId, { events: await fetchCultivoEvents(cultivoId) })
+        toast.success("Evento registrado.")
+      } catch (err) {
+        toast.error(getErrorMessage(err, "Nao foi possivel registrar o evento."))
       }
-      const res = await lotesApi.finalizarCultivo(Number(cultivoId), payload)
-      // res expected to have hashEventos, qrCode, arquivoPdf, arquivoTxt
-      const hashObj = res ? { lotId: cultivoId, hash: res.hashEventos || res.hash || "", generatedAt: new Date(), eventCount: (cultivo.events || []).length } : undefined
-      setCultivos((prev) => prev.map((c) => c.id === cultivoId ? { ...c, isComplete: true, traceabilityHash: hashObj as any, status: "Colheita" } : c))
-    } catch (err) {
-      console.error("Failed to finalize cultivo", err)
-    }
-  }, [cultivos])
+    },
+    [updateCultivo],
+  )
+
+  const handleFinalize = useCallback(
+    async (cultivoId: string) => {
+      const cultivo = cultivos.find((c) => c.id === cultivoId)
+      if (!cultivo || cultivo.isComplete) return
+      try {
+        const lote = mapApiLote(await lotesApi.getLoteById(Number(cultivoId)))
+        const res = await lotesApi.finalizarCultivo(Number(cultivoId), {
+          nomeLote: lote.name,
+          cultura: lote.crop,
+          producaoTotal: lote.production,
+          custoTotal: lote.cost,
+          precoVenda: lote.salePrice,
+        })
+        updateCultivo(cultivoId, {
+          isComplete: true,
+          status: "Colheita",
+          traceabilityHash: hashFromFinalize(res, cultivoId, (cultivo.events || []).length),
+        })
+        toast.success("Cultivo finalizado.")
+      } catch (err) {
+        toast.error(getErrorMessage(err, "Nao foi possivel finalizar o cultivo."))
+      }
+    },
+    [cultivos, updateCultivo],
+  )
 
   return (
     <>
@@ -255,7 +247,9 @@ export default function CultivosPage() {
       <PageContainer>
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{cultivos.length} cultivos ativos</p>
+            <p className="text-sm text-muted-foreground">
+              {loading ? "Carregando..." : `${cultivos.length} cultivos`}
+            </p>
             <Link href="/dashboard/cultivos/novo">
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -264,6 +258,16 @@ export default function CultivosPage() {
             </Link>
           </div>
 
+          {!loading && cultivos.length === 0 && (
+            <Card className="border-dashed">
+              <CardContent className="py-16 text-center">
+                <Leaf className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm font-medium text-foreground mb-1">Nenhum cultivo ainda</p>
+                <p className="text-xs text-muted-foreground">Crie um lote para comecar a registrar eventos</p>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="space-y-4">
             {cultivos.map((cultivo) => (
               <CropLotCard
@@ -271,6 +275,7 @@ export default function CultivosPage() {
                 cultivo={cultivo}
                 onAddEvent={handleAddEvent}
                 onFinalize={handleFinalize}
+                farmerName={farmerName}
               />
             ))}
           </div>

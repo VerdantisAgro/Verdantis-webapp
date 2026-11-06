@@ -63,13 +63,12 @@ Documento gerado automaticamente pelo Verdantis
   `.trim()
 }
 
-// Download as text file (simulating PDF)
-function downloadAsFile(content: string, filename: string, type: "pdf" | "docx") {
+function downloadAsText(content: string, filename: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" })
   const url = URL.createObjectURL(blob)
   const link = document.createElement("a")
   link.href = url
-  link.download = `${filename}.${type === "pdf" ? "txt" : "txt"}` // Using txt as simulation
+  link.download = `${filename}.txt`
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
@@ -110,10 +109,10 @@ export function CultivationExport({ cultivo, farmerName, onFinish }: Cultivation
     onFinish()
   }
 
-  const handleDownload = (type: "pdf" | "docx") => {
+  const handleDownload = () => {
     const content = generateDocumentContent(cultivo, farmerName)
     const filename = `rastreabilidade_${cultivo.lot.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}`
-    downloadAsFile(content, filename, type)
+    downloadAsText(content, filename)
   }
 
   if (!hasEvents) {
