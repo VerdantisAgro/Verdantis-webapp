@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/src/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card"
 import { Badge } from "@/src/components/ui/badge"
-import { FileText, FileDown, QrCode, CheckCircle, Loader2 } from "lucide-react"
+import { FileText, QrCode, CheckCircle, Loader2 } from "lucide-react"
 import type { Cultivo, TraceabilityEvent } from "@/src/types"
 
 interface CultivationExportProps {
@@ -101,9 +101,6 @@ export function CultivationExport({ cultivo, farmerName, onFinish }: Cultivation
     
     setQrCodeUrl(generateQRCodeUrl(qrData))
     
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
     setIsGenerating(false)
     setIsGenerated(true)
     onFinish()
@@ -156,24 +153,10 @@ export function CultivationExport({ cultivo, farmerName, onFinish }: Cultivation
             <p>QR Code contendo o historico de eventos</p>
           </div>
 
-          <div className="flex gap-3">
-            <Button 
-              variant="outline" 
-              className="flex-1"
-              onClick={() => handleDownload("pdf")}
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Baixar PDF
-            </Button>
-            <Button 
-              variant="outline" 
-              className="flex-1"
-              onClick={() => handleDownload("docx")}
-            >
-              <FileDown className="h-4 w-4 mr-2" />
-              Baixar DOCX
-            </Button>
-          </div>
+          <Button variant="outline" className="w-full" onClick={handleDownload}>
+            <FileText className="h-4 w-4 mr-2" />
+            Baixar relatorio (.txt)
+          </Button>
         </CardContent>
       </Card>
     )
