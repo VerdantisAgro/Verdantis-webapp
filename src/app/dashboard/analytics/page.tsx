@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Topbar } from "@/src/components/topbar"
 import { PageContainer } from "@/src/components/page-container"
 import { ChartCard } from "@/src/components/chart-card"
@@ -10,7 +10,10 @@ import { Button } from "@/src/components/ui/button"
 import { Maximize2, X, Calculator, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import type { CropMarketData } from "@/src/types"
-import { analyticsApi } from "@/src/api"
+import { toast } from "sonner"
+import { analyticsApi, lotesApi, getErrorMessage } from "@/src/api"
+import { formatCurrency } from "@/src/lib/format"
+import { mapApiLote, type UILote } from "@/src/lib/lotes"
 import {
   BarChart,
   Bar,
@@ -108,58 +111,6 @@ const STATIC_CROPS: CropMarketData[] = [
     priceTrend: "stable",
   },
 ]
-
-const profitComparison = [
-  { name: "Lote A1", lucro: 4225, custo: 11500, receita: 15725 },
-  { name: "Lote B2", lucro: 10400, custo: 8800, receita: 19200 },
-  { name: "Lote C3", lucro: -2700, custo: 16200, receita: 13500 },
-  { name: "Lote D4", lucro: 1900, custo: 7200, receita: 9100 },
-  { name: "Lote E5", lucro: 6350, custo: 9800, receita: 16150 },
-  { name: "Lote F6", lucro: -560, custo: 3200, receita: 2640 },
-]
-
-const profitByCrop = [
-  { cultura: "Milho", lucro: 10575 },
-  { cultura: "Soja", lucro: 10400 },
-  { cultura: "Trigo", lucro: 1900 },
-  { cultura: "Cafe", lucro: -2700 },
-  { cultura: "Alface", lucro: -560 },
-]
-
-const costVsRevenue = [
-  { name: "Lote A1", custo: 11500, receita: 15725 },
-  { name: "Lote B2", custo: 8800, receita: 19200 },
-  { name: "Lote C3", custo: 16200, receita: 13500 },
-  { name: "Lote D4", custo: 7200, receita: 9100 },
-  { name: "Lote E5", custo: 9800, receita: 16150 },
-  { name: "Lote F6", custo: 3200, receita: 2640 },
-]
-
-const profitTrends = [
-  { month: "Jan", lucro: 2800, receita: 8500, custo: 5700 },
-  { month: "Fev", lucro: 3200, receita: 9200, custo: 6000 },
-  { month: "Mar", lucro: 1500, receita: 7800, custo: 6300 },
-  { month: "Abr", lucro: 4100, receita: 11000, custo: 6900 },
-  { month: "Mai", lucro: 3800, receita: 10500, custo: 6700 },
-  { month: "Jun", lucro: 5200, receita: 12800, custo: 7600 },
-  { month: "Jul", lucro: 4800, receita: 12000, custo: 7200 },
-  { month: "Ago", lucro: 6100, receita: 14500, custo: 8400 },
-  { month: "Set", lucro: 5400, receita: 13200, custo: 7800 },
-  { month: "Out", lucro: 7200, receita: 16000, custo: 8800 },
-  { month: "Nov", lucro: 6800, receita: 15500, custo: 8700 },
-  { month: "Dez", lucro: 8500, receita: 18200, custo: 9700 },
-]
-
-const productivityByArea = [
-  { area: "0-10 ha", produtividade: 145 },
-  { area: "10-25 ha", produtividade: 168 },
-  { area: "25-50 ha", produtividade: 182 },
-  { area: "50-100 ha", produtividade: 195 },
-  { area: ">100 ha", produtividade: 210 },
-]
-
-const formatCurrency = (value: number) =>
-  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
 const tooltipStyle = {
   backgroundColor: "var(--card)",
@@ -277,10 +228,50 @@ export default function AnalyticsPage() {
           )
         }
       } catch {
-        // keep static data on API failure
+        // keep reference prices when quotes are unavailable
       }
     })()
   }, [])
+
+  const [lots, setLots] = useState<UILote[]>([])
+  const [profitTrends, setProfitTrends] = useState<{ month: string; lucro: number; receita?: number; custo?: number }[]>([])
+
+  useEffect(() => {
+    ;(async () => {
+      const [lotesRes, tendenciaRes] = await Promise.allSettled([
+        lotesApi.getLotes(),
+        analyticsApi.getTendenciaLucro(),
+      ])
+      if (lotesRes.status === "fulfilled") {
+        setLots((lotesRes.value || []).map(mapApiLote))
+      } else {
+        toast.error(getErrorMessage(lotesRes.reason, "Nao foi possivel carregar os lotes."))
+      }
+      if (tendenciaRes.status === "fulfilled" && Array.isArray(tendenciaRes.value)) {
+        setProfitTrends(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          tendenciaRes.value.map((t: any) => ({
+            month: t.mes || t.month || t.label || "",
+            lucro: t.lucro ?? 0,
+            receita: t.receita,
+            custo: t.custo,
+          })),
+        )
+      }
+    })()
+  }, [])
+
+  const profitComparison = useMemo(
+    () => lots.map((l) => ({ name: l.name, lucro: l.profit, custo: l.cost, receita: l.revenue })),
+    [lots],
+  )
+  const costVsRevenue = profitComparison
+
+  const profitByCrop = useMemo(() => {
+    const totals = new Map<string, number>()
+    lots.forEach((l) => totals.set(l.crop || "Sem cultura", (totals.get(l.crop || "Sem cultura") ?? 0) + l.profit))
+    return Array.from(totals, ([cultura, lucro]) => ({ cultura, lucro })).sort((a, b) => b.lucro - a.lucro)
+  }, [lots])
 
   return (
     <>
@@ -317,7 +308,7 @@ export default function AnalyticsPage() {
           <div>
             <div className="flex items-baseline justify-between mb-3">
               <h2 className="text-sm font-semibold text-foreground">Cotacoes de Mercado</h2>
-              <p className="text-xs text-muted-foreground">Faixas de preco de referencia · 2025</p>
+              <p className="text-xs text-muted-foreground">Faixas de preco de referencia</p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {cropMarketData.map((crop) => (
@@ -446,32 +437,6 @@ export default function AnalyticsPage() {
             </ExpandableChartCard>
           </div>
 
-          {/* Productivity by Area */}
-          <ExpandableChartCard 
-            title="Produtividade por Tamanho de Area" 
-            description="Media de produtividade (sc/ha) por faixa de tamanho de lote"
-            expandedContent={
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={productivityByArea}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="area" tick={{ fill: "var(--muted-foreground)", fontSize: 14 }} />
-                  <YAxis tick={{ fill: "var(--muted-foreground)", fontSize: 14 }} />
-                  <Tooltip formatter={(value: number) => `${value} sc/ha`} contentStyle={tooltipStyle} />
-                  <Bar dataKey="produtividade" name="Produtividade" radius={[4, 4, 0, 0]} fill="var(--chart-4)" />
-                </BarChart>
-              </ResponsiveContainer>
-            }
-          >
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={productivityByArea}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="area" tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
-                <YAxis tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
-                <Tooltip formatter={(value: number) => `${value} sc/ha`} contentStyle={tooltipStyle} />
-                <Bar dataKey="produtividade" name="Produtividade" radius={[4, 4, 0, 0]} fill="var(--chart-4)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ExpandableChartCard>
         </div>
       </PageContainer>
     </>
